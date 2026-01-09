@@ -1,0 +1,696 @@
+/**
+ * Main Application - 骑行热力图生成器主程序
+ */
+
+class CyclingHeatmapApp {
+    constructor() {
+        this.gpxParser = new GPXParser();
+        this.heatmapRenderer = null;
+        this.loadedTracks = [];
+        this.isProcessing = false;
+        
+        this.initializeApp();
+    }
+
+    /**
+     * 初始化应用
+     */
+    initializeApp() {
+        // 初始化热力图渲染器
+        this.heatmapRenderer = new HeatmapRenderer('map');
+        
+        // 绑定事件监听器
+        this.bindEventListeners();
+        
+        // 初始化UI状态
+        this.updateUI();
+        
+        console.log('🚴 Cycling Heatmap Generator 已启动');
+    }
+
+    /**
+     * 绑定事件监听器
+     */
+    bindEventListeners() {
+        // 文件上传相关
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const selectFileBtn = document.getElementById('selectFileBtn');
+        const clearFilesBtn = document.getElementById('clearFiles');
+
+        // 拖拽上传
+        uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
+        uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
+        uploadArea.addEventListener('drop', this.handleDrop.bind(this));
+
+        // 只在上传区域的空白部分点击时触发文件选择
+        uploadArea.addEventListener('click', (e) => {
+            // 如果点击的是按钮（包括上传按钮和帮助按钮），不触发文件选择
+            if (e.target.closest('.upload-btn') || e.target.closest('.help-btn')) {
+                return;
+            }
+            fileInput.click();
+        });
+
+        // 选择文件按钮
+        selectFileBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // 阻止事件冒泡
+            fileInput.click();
+        });
+
+        // 文件选择
+        fileInput.addEventListener('change', this.handleFileSelect.bind(this));
+
+        // 清除文件
+        clearFilesBtn.addEventListener('click', this.clearAllFiles.bind(this));
+
+        // 参数控制
+        this.bindParameterControls();
+
+        // 生成按钮
+        const generateBtn = document.getElementById('generateBtn');
+        generateBtn.addEventListener('click', this.generateHeatmap.bind(this));
+
+        // 地图控制按钮
+        const exportBtn = document.getElementById('exportBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        
+        exportBtn.addEventListener('click', this.exportMap.bind(this));
+        fullscreenBtn.addEventListener('click', this.enterFullscreen.bind(this));
+    }
+
+    /**
+     * 绑定参数控制事件
+     */
+    bindParameterControls() {
+        // 地图样式
+        const mapStyleSelect = document.getElementById('mapStyle');
+        mapStyleSelect.addEventListener('change', (e) => {
+            this.heatmapRenderer.setMapStyle(e.target.value);
+        });
+
+        // 地图语言
+        const mapLanguageSelect = document.getElementById('mapLanguage');
+        mapLanguageSelect.addEventListener('change', (e) => {
+            this.heatmapRenderer.setMapLanguage(e.target.value);
+            
+            // 更新API使用量面板的显示状态
+            this.updateApiUsagePanelVisibility(e.target.value);
+        });
+
+        // 滑块控件
+        const controls = ['radius', 'blur', 'opacity'];
+        controls.forEach(control => {
+            const slider = document.getElementById(control);
+            const valueDisplay = document.getElementById(control + 'Value');
+            
+            slider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                valueDisplay.textContent = value;
+                
+                // 实时更新热力图
+                this.updateHeatmapParameters();
+            });
+        });
+
+        // 日期范围
+        const dateRangeSelect = document.getElementById('dateRange');
+        dateRangeSelect.addEventListener('change', () => {
+            if (this.loadedTracks.length > 0) {
+                this.updateHeatmapWithDateFilter();
+            }
+        });
+    }
+
+    /**
+     * 处理拖拽悬停
+     */
+    handleDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('uploadArea').classList.add('dragover');
+    }
+
+    /**
+     * 处理拖拽离开
+     */
+    handleDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('uploadArea').classList.remove('dragover');
+    }
+
+    /**
+     * 处理文件拖拽放置
+     */
+    handleDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        document.getElementById('uploadArea').classList.remove('dragover');
+        
+        const files = Array.from(e.dataTransfer.files).filter(file => 
+            file.name.toLowerCase().endsWith('.gpx')
+        );
+        
+        if (files.length > 0) {
+            this.processFiles(files);
+        } else {
+            this.showMessage('请选择GPX文件', 'warning');
+        }
+    }
+
+    /**
+     * 处理文件选择
+     */
+    handleFileSelect(e) {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) {
+            this.processFiles(files);
+        }
+    }
+
+    /**
+     * 处理文件
+     */
+    async processFiles(files) {
+        if (this.isProcessing) {
+            this.showMessage('正在处理文件，请稍候...', 'info');
+            return;
+        }
+
+        this.isProcessing = true;
+        this.showLoading(true);
+        
+        try {
+            // 解析文件
+            const results = await this.gpxParser.parseFiles(files, this.updateProgress.bind(this));
+            
+            // 过滤成功解析的文件
+            const successfulTracks = results.filter(result => !result.error);
+            const failedTracks = results.filter(result => result.error);
+            
+            if (successfulTracks.length > 0) {
+                this.loadedTracks = this.loadedTracks.concat(successfulTracks);
+                this.updateFileList();
+                this.updateStatistics();
+                this.enableGenerateButton();
+                
+                this.showMessage(
+                    `成功加载 ${successfulTracks.length} 个文件${failedTracks.length > 0 ? `，${failedTracks.length} 个文件失败` : ''}`,
+                    'success'
+                );
+            } else {
+                this.showMessage('没有成功解析的文件', 'error');
+            }
+            
+            if (failedTracks.length > 0) {
+                console.warn('解析失败的文件:', failedTracks);
+            }
+            
+        } catch (error) {
+            console.error('处理文件时出错:', error);
+            this.showMessage('处理文件时出错: ' + error.message, 'error');
+        } finally {
+            this.isProcessing = false;
+            this.showLoading(false);
+        }
+    }
+
+    /**
+     * 更新进度
+     */
+    updateProgress(progress) {
+        const loadingText = document.getElementById('loadingText');
+        const progressFill = document.getElementById('progressFill');
+        
+        const percentage = (progress.current / progress.total) * 100;
+        progressFill.style.width = percentage + '%';
+        
+        if (progress.status === 'processing') {
+            loadingText.textContent = `正在处理: ${progress.filename} (${progress.current}/${progress.total})`;
+        } else if (progress.status === 'completed') {
+            loadingText.textContent = `已完成: ${progress.filename} - ${progress.points} 个点`;
+        } else if (progress.status === 'error') {
+            loadingText.textContent = `错误: ${progress.filename} - ${progress.error}`;
+        }
+    }
+
+    /**
+     * 更新文件列表显示
+     */
+    updateFileList() {
+        const fileList = document.getElementById('fileList');
+        const fileListItems = document.getElementById('fileListItems');
+        const fileCountText = document.getElementById('fileCountText');
+        
+        if (this.loadedTracks.length === 0) {
+            fileList.style.display = 'none';
+            return;
+        }
+        
+        fileList.style.display = 'block';
+        
+        // 更新文件数量显示
+        const totalPoints = this.loadedTracks.reduce((sum, track) => sum + track.pointCount, 0);
+        fileCountText.textContent = `${this.loadedTracks.length} 个文件 (${totalPoints.toLocaleString()} 点)`;
+        
+        // 更新文件列表
+        fileListItems.innerHTML = '';
+        this.loadedTracks.forEach(track => {
+            const li = document.createElement('li');
+            li.textContent = `${track.filename} (${track.pointCount.toLocaleString()} 点)`;
+            fileListItems.appendChild(li);
+        });
+    }
+
+    /**
+     * 更新统计信息
+     */
+    updateStatistics() {
+        const stats = this.gpxParser.getStatistics();
+        
+        document.getElementById('fileCount').textContent = this.loadedTracks.length;
+        document.getElementById('pointCount').textContent = stats.totalPoints.toLocaleString();
+        document.getElementById('totalDistance').textContent = stats.totalDistance + ' km';
+        document.getElementById('dateRangeText').textContent = this.gpxParser.getDateRangeText();
+        
+        document.getElementById('statsSection').style.display = 'block';
+    }
+
+    /**
+     * 启用生成按钮
+     */
+    enableGenerateButton() {
+        const generateBtn = document.getElementById('generateBtn');
+        generateBtn.disabled = false;
+    }
+
+    /**
+     * 清除所有文件
+     */
+    clearAllFiles() {
+        this.loadedTracks = [];
+        this.gpxParser.clear();
+        this.heatmapRenderer.clearHeatmap();
+        
+        document.getElementById('fileList').style.display = 'none';
+        document.getElementById('statsSection').style.display = 'none';
+        document.getElementById('generateBtn').disabled = true;
+        document.getElementById('exportBtn').disabled = true;
+        
+        // 重置文件输入
+        document.getElementById('fileInput').value = '';
+        
+        this.showMessage('已清除所有文件', 'info');
+    }
+
+    /**
+     * 生成热力图
+     */
+    async generateHeatmap() {
+        if (this.loadedTracks.length === 0) {
+            this.showMessage('请先上传GPX文件', 'warning');
+            return;
+        }
+
+        this.showLoading(true, '正在生成热力图...');
+        
+        try {
+            // 获取日期过滤参数
+            const dateRange = parseInt(document.getElementById('dateRange').value);
+            
+            // 分批过滤轨迹点，避免栈溢出
+            const filteredPoints = await this.filterPointsAsync(this.loadedTracks, dateRange);
+            
+            if (filteredPoints.length === 0) {
+                this.showMessage('在指定时间范围内没有找到轨迹点', 'warning');
+                return;
+            }
+            
+            // 检查点数量，如果太多则进行采样
+            const maxPoints = 50000; // 最大点数限制
+            let finalPoints = filteredPoints;
+            
+            if (filteredPoints.length > maxPoints) {
+                this.showLoading(true, `数据点过多(${filteredPoints.length.toLocaleString()}个)，正在优化...`);
+                finalPoints = this.samplePoints(filteredPoints, maxPoints);
+                this.showMessage(`为了性能优化，已将 ${filteredPoints.length.toLocaleString()} 个点采样为 ${finalPoints.length.toLocaleString()} 个点`, 'info');
+            }
+            
+            // 更新热力图参数
+            this.updateHeatmapParameters();
+            
+            // 渲染热力图
+            this.heatmapRenderer.renderHeatmap(finalPoints);
+            
+            // 启用导出按钮
+            document.getElementById('exportBtn').disabled = false;
+            
+            this.showMessage(`热力图生成成功！显示 ${finalPoints.length.toLocaleString()} 个轨迹点`, 'success');
+            
+        } catch (error) {
+            console.error('生成热力图时出错:', error);
+            this.showMessage('生成热力图时出错: ' + error.message, 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    /**
+     * 异步过滤轨迹点，避免阻塞UI
+     * @param {Array} tracks - 轨迹数组
+     * @param {number} days - 天数
+     * @returns {Promise<Array>} 过滤后的轨迹点
+     */
+    async filterPointsAsync(tracks, days) {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                const filteredPoints = this.gpxParser.filterByDateRange(tracks, days);
+                resolve(filteredPoints);
+            }, 0);
+        });
+    }
+
+    /**
+     * 对轨迹点进行采样，减少数据量
+     * @param {Array} points - 原始轨迹点
+     * @param {number} maxPoints - 最大点数
+     * @returns {Array} 采样后的轨迹点
+     */
+    samplePoints(points, maxPoints) {
+        if (points.length <= maxPoints) {
+            return points;
+        }
+        
+        const sampledPoints = [];
+        const step = points.length / maxPoints;
+        
+        for (let i = 0; i < points.length; i += step) {
+            sampledPoints.push(points[Math.floor(i)]);
+        }
+        
+        return sampledPoints;
+    }
+
+    /**
+     * 更新热力图参数
+     */
+    updateHeatmapParameters() {
+        const radius = parseInt(document.getElementById('radius').value);
+        const blur = parseInt(document.getElementById('blur').value);
+        const opacity = parseFloat(document.getElementById('opacity').value);
+        
+        this.heatmapRenderer.updateHeatmapOptions({
+            radius: radius,
+            blur: blur,
+            minOpacity: opacity
+        });
+    }
+
+    /**
+     * 根据日期过滤更新热力图
+     */
+    updateHeatmapWithDateFilter() {
+        if (this.loadedTracks.length === 0) return;
+        
+        const dateRange = parseInt(document.getElementById('dateRange').value);
+        const filteredPoints = this.gpxParser.filterByDateRange(this.loadedTracks, dateRange);
+        
+        if (filteredPoints.length > 0) {
+            this.heatmapRenderer.renderHeatmap(filteredPoints);
+        } else {
+            this.heatmapRenderer.clearHeatmap();
+            this.showMessage('在指定时间范围内没有找到轨迹点', 'warning');
+        }
+    }
+
+    /**
+     * 导出地图
+     */
+    async exportMap() {
+        if (!this.heatmapRenderer.heatLayer) {
+            this.showMessage('请先生成热力图再导出', 'warning');
+            return;
+        }
+
+        try {
+            // 显示导出进度
+            this.showLoading(true, '正在导出热力图...');
+            
+            // 等待一小段时间确保地图完全渲染
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // 导出并下载图片
+            await this.heatmapRenderer.exportAndDownload();
+            
+            this.showMessage('热力图导出成功！', 'success');
+            
+        } catch (error) {
+            console.error('导出地图时出错:', error);
+            this.showMessage('导出地图时出错: ' + error.message, 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    /**
+     * 进入全屏模式
+     */
+    enterFullscreen() {
+        this.heatmapRenderer.enterFullscreen();
+    }
+
+    /**
+     * 显示加载状态
+     */
+    showLoading(show, text = '正在处理...') {
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const progressFill = document.getElementById('progressFill');
+        
+        if (show) {
+            loadingText.textContent = text;
+            progressFill.style.width = '0%';
+            loadingOverlay.style.display = 'flex';
+        } else {
+            loadingOverlay.style.display = 'none';
+        }
+    }
+
+    /**
+     * 显示消息
+     */
+    showMessage(message, type = 'info') {
+        // 创建消息元素
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message message-${type}`;
+        messageDiv.textContent = message;
+        
+        // 添加样式
+        messageDiv.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            z-index: 10000;
+            max-width: 400px;
+            word-wrap: break-word;
+            animation: slideInRight 0.3s ease;
+        `;
+        
+        // 设置背景色
+        const colors = {
+            success: '#28a745',
+            error: '#dc3545',
+            warning: '#ffc107',
+            info: '#17a2b8'
+        };
+        messageDiv.style.backgroundColor = colors[type] || colors.info;
+        
+        // 添加到页面
+        document.body.appendChild(messageDiv);
+        
+        // 3秒后自动移除
+        setTimeout(() => {
+            if (messageDiv.parentNode) {
+                messageDiv.style.animation = 'slideOutRight 0.3s ease';
+                setTimeout(() => {
+                    messageDiv.remove();
+                }, 300);
+            }
+        }, 3000);
+        
+        console.log(`[${type.toUpperCase()}] ${message}`);
+    }
+
+    /**
+     * 更新API使用量面板的显示状态
+     * @param {string} mapLanguage - 地图语言类型
+     */
+    updateApiUsagePanelVisibility(mapLanguage) {
+        const apiUsagePanel = document.getElementById('apiUsagePanel');
+        if (!apiUsagePanel) return;
+        
+        // 只有使用天地图时才显示API使用量面板
+        if (mapLanguage === 'zh-vector' || mapLanguage === 'zh-satellite') {
+            apiUsagePanel.style.display = 'block';
+        } else {
+            apiUsagePanel.style.display = 'none';
+        }
+    }
+
+    /**
+     * 更新UI状态
+     */
+    updateUI() {
+        // 初始状态下禁用生成和导出按钮
+        document.getElementById('generateBtn').disabled = true;
+        document.getElementById('exportBtn').disabled = true;
+        
+        // 隐藏文件列表和统计信息
+        document.getElementById('fileList').style.display = 'none';
+        document.getElementById('statsSection').style.display = 'none';
+        
+        // 初始化API使用量面板显示状态
+        const mapLanguageSelect = document.getElementById('mapLanguage');
+        if (mapLanguageSelect) {
+            this.updateApiUsagePanelVisibility(mapLanguageSelect.value);
+        }
+    }
+}
+
+// 帮助模态框相关函数
+function showHelp() {
+    console.log('showHelp() called - showing help modal');
+    document.getElementById('helpModal').style.display = 'flex';
+}
+
+function closeHelp() {
+    console.log('closeHelp() called - closing help modal');
+    document.getElementById('helpModal').style.display = 'none';
+}
+
+// GPX指南模态框相关函数
+function showGpxGuide() {
+    console.log('showGpxGuide() called - showing GPX guide modal');
+    document.getElementById('gpxGuideModal').style.display = 'flex';
+}
+
+function closeGpxGuide() {
+    console.log('closeGpxGuide() called - closing GPX guide modal');
+    document.getElementById('gpxGuideModal').style.display = 'none';
+}
+
+// 搜索过滤功能
+function filterGuide() {
+    const searchTerm = document.getElementById('guideSearch').value.toLowerCase();
+    const sections = document.querySelectorAll('.guide-section');
+    const deviceItems = document.querySelectorAll('.device-item');
+    
+    // 如果搜索框为空，显示所有内容
+    if (searchTerm === '') {
+        sections.forEach(section => {
+            section.classList.remove('hidden');
+        });
+        deviceItems.forEach(item => {
+            item.classList.remove('hidden');
+        });
+        return;
+    }
+    
+    // 搜索匹配
+    sections.forEach(section => {
+        const keywords = section.getAttribute('data-keywords') || '';
+        const textContent = section.textContent.toLowerCase();
+        
+        if (keywords.toLowerCase().includes(searchTerm) || textContent.includes(searchTerm)) {
+            section.classList.remove('hidden');
+        } else {
+            section.classList.add('hidden');
+        }
+    });
+    
+    // 搜索设备项
+    deviceItems.forEach(item => {
+        const textContent = item.textContent.toLowerCase();
+        const parentSection = item.closest('.guide-section');
+        
+        if (textContent.includes(searchTerm)) {
+            item.classList.remove('hidden');
+            // 如果设备项匹配，确保父级section也显示
+            if (parentSection) {
+                parentSection.classList.remove('hidden');
+            }
+        } else {
+            item.classList.add('hidden');
+        }
+    });
+}
+
+// 捐赠模态框相关函数
+function showDonate() {
+    console.log('showDonate() called - showing donate modal');
+    document.getElementById('donateModal').style.display = 'flex';
+}
+
+function closeDonate() {
+    console.log('closeDonate() called - closing donate modal');
+    document.getElementById('donateModal').style.display = 'none';
+}
+
+// 点击模态框外部关闭
+window.addEventListener('click', (e) => {
+    const helpModal = document.getElementById('helpModal');
+    const gpxGuideModal = document.getElementById('gpxGuideModal');
+    const donateModal = document.getElementById('donateModal');
+    
+    if (e.target === helpModal) {
+        closeHelp();
+    }
+    
+    if (e.target === gpxGuideModal) {
+        closeGpxGuide();
+    }
+    
+    if (e.target === donateModal) {
+        closeDonate();
+    }
+});
+
+// 添加CSS动画
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOutRight {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// 页面加载完成后初始化应用
+document.addEventListener('DOMContentLoaded', () => {
+    window.app = new CyclingHeatmapApp();
+});
+
+// 导出应用类
+window.CyclingHeatmapApp = CyclingHeatmapApp;
