@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Cycling Heatmap Generator" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>北京骑行示例 - 天安门周边</name>
+    <desc>北京市中心骑行路线示例，包含天安门广场、故宫周边区域</desc>
+    <time>2024-03-15T08:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Beijing City Ride</name>
+    <type>Cycling</type>
+    <trkseg>
+      <!-- 从天安门广场开始 -->
+      <trkpt lat="39.9042" lon="116.4074">
+        <ele>45</ele>
+        <time>2024-03-15T08:00:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9052" lon="116.4084">
+        <ele>46</ele>
+        <time>2024-03-15T08:01:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9062" lon="116.4094">
+        <ele>47</ele>
+        <time>2024-03-15T08:02:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9072" lon="116.4104">
+        <ele>48</ele>
+        <time>2024-03-15T08:03:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9082" lon="116.4114">
+        <ele>49</ele>
+        <time>2024-03-15T08:04:00Z</time>
+      </trkpt>
+      <!-- 向东骑行 -->
+      <trkpt lat="39.9092" lon="116.4124">
+        <ele>50</ele>
+        <time>2024-03-15T08:05:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9102" lon="116.4134">
+        <ele>51</ele>
+        <time>2024-03-15T08:06:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9112" lon="116.4144">
+        <ele>52</ele>
+        <time>2024-03-15T08:07:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9122" lon="116.4154">
+        <ele>53</ele>
+        <time>2024-03-15T08:08:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9132" lon="116.4164">
+        <ele>54</ele>
+        <time>2024-03-15T08:09:00Z</time>
+      </trkpt>
+      <!-- 转向南 -->
+      <trkpt lat="39.9122" lon="116.4174">
+        <ele>55</ele>
+        <time>2024-03-15T08:10:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9112" lon="116.4184">
+        <ele>56</ele>
+        <time>2024-03-15T08:11:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9102" lon="116.4194">
+        <ele>57</ele>
+        <time>2024-03-15T08:12:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9092" lon="116.4204">
+        <ele>58</ele>
+        <time>2024-03-15T08:13:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9082" lon="116.4214">
+        <ele>59</ele>
+        <time>2024-03-15T08:14:00Z</time>
+      </trkpt>
+      <!-- 继续南行 -->
+      <trkpt lat="39.9072" lon="116.4224">
+        <ele>60</ele>
+        <time>2024-03-15T08:15:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9062" lon="116.4234">
+        <ele>61</ele>
+        <time>2024-03-15T08:16:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9052" lon="116.4244">
+        <ele>62</ele>
+        <time>2024-03-15T08:17:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9042" lon="116.4254">
+        <ele>63</ele>
+        <time>2024-03-15T08:18:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9032" lon="116.4264">
+        <ele>64</ele>
+        <time>2024-03-15T08:19:00Z</time>
+      </trkpt>
+      <!-- 转向西 -->
+      <trkpt lat="39.9022" lon="116.4254">
+        <ele>65</ele>
+        <time>2024-03-15T08:20:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9012" lon="116.4244">
+        <ele>66</ele>
+        <time>2024-03-15T08:21:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9002" lon="116.4234">
+        <ele>67</ele>
+        <time>2024-03-15T08:22:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8992" lon="116.4224">
+        <ele>68</ele>
+        <time>2024-03-15T08:23:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8982" lon="116.4214">
+        <ele>69</ele>
+        <time>2024-03-15T08:24:00Z</time>
+      </trkpt>
+      <!-- 继续西行 -->
+      <trkpt lat="39.8972" lon="116.4204">
+        <ele>70</ele>
+        <time>2024-03-15T08:25:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8962" lon="116.4194">
+        <ele>71</ele>
+        <time>2024-03-15T08:26:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8952" lon="116.4184">
+        <ele>72</ele>
+        <time>2024-03-15T08:27:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8942" lon="116.4174">
+        <ele>73</ele>
+        <time>2024-03-15T08:28:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8932" lon="116.4164">
+        <ele>74</ele>
+        <time>2024-03-15T08:29:00Z</time>
+      </trkpt>
+      <!-- 转向北，回到起点 -->
+      <trkpt lat="39.8942" lon="116.4154">
+        <ele>75</ele>
+        <time>2024-03-15T08:30:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8952" lon="116.4144">
+        <ele>76</ele>
+        <time>2024-03-15T08:31:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8962" lon="116.4134">
+        <ele>77</ele>
+        <time>2024-03-15T08:32:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8972" lon="116.4124">
+        <ele>78</ele>
+        <time>2024-03-15T08:33:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8982" lon="116.4114">
+        <ele>79</ele>
+        <time>2024-03-15T08:34:00Z</time>
+      </trkpt>
+      <trkpt lat="39.8992" lon="116.4104">
+        <ele>80</ele>
+        <time>2024-03-15T08:35:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9002" lon="116.4094">
+        <ele>81</ele>
+        <time>2024-03-15T08:36:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9012" lon="116.4084">
+        <ele>82</ele>
+        <time>2024-03-15T08:37:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9022" lon="116.4074">
+        <ele>83</ele>
+        <time>2024-03-15T08:38:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9032" lon="116.4074">
+        <ele>84</ele>
+        <time>2024-03-15T08:39:00Z</time>
+      </trkpt>
+      <trkpt lat="39.9042" lon="116.4074">
+        <ele>85</ele>
+        <time>2024-03-15T08:40:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>

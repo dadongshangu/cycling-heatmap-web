@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Cycling Heatmap Generator" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>上海骑行示例 - 外滩黄浦江沿岸</name>
+    <desc>上海外滩黄浦江沿岸骑行路线示例，包含外滩、陆家嘴区域</desc>
+    <time>2024-04-20T09:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Shanghai Bund Ride</name>
+    <type>Cycling</type>
+    <trkseg>
+      <!-- 从外滩开始 -->
+      <trkpt lat="31.2304" lon="121.4737">
+        <ele>5</ele>
+        <time>2024-04-20T09:00:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2314" lon="121.4747">
+        <ele>6</ele>
+        <time>2024-04-20T09:01:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2324" lon="121.4757">
+        <ele>7</ele>
+        <time>2024-04-20T09:02:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2334" lon="121.4767">
+        <ele>8</ele>
+        <time>2024-04-20T09:03:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2344" lon="121.4777">
+        <ele>9</ele>
+        <time>2024-04-20T09:04:00Z</time>
+      </trkpt>
+      <!-- 沿黄浦江北上 -->
+      <trkpt lat="31.2354" lon="121.4787">
+        <ele>10</ele>
+        <time>2024-04-20T09:05:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2364" lon="121.4797">
+        <ele>11</ele>
+        <time>2024-04-20T09:06:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2374" lon="121.4807">
+        <ele>12</ele>
+        <time>2024-04-20T09:07:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2384" lon="121.4817">
+        <ele>13</ele>
+        <time>2024-04-20T09:08:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2394" lon="121.4827">
+        <ele>14</ele>
+        <time>2024-04-20T09:09:00Z</time>
+      </trkpt>
+      <!-- 转向东，过江 -->
+      <trkpt lat="31.2404" lon="121.4837">
+        <ele>15</ele>
+        <time>2024-04-20T09:10:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2414" lon="121.4847">
+        <ele>16</ele>
+        <time>2024-04-20T09:11:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2424" lon="121.4857">
+        <ele>17</ele>
+        <time>2024-04-20T09:12:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2434" lon="121.4867">
+        <ele>18</ele>
+        <time>2024-04-20T09:13:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2444" lon="121.4877">
+        <ele>19</ele>
+        <time>2024-04-20T09:14:00Z</time>
+      </trkpt>
+      <!-- 到达陆家嘴 -->
+      <trkpt lat="31.2454" lon="121.4887">
+        <ele>20</ele>
+        <time>2024-04-20T09:15:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2464" lon="121.4897">
+        <ele>21</ele>
+        <time>2024-04-20T09:16:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2474" lon="121.4907">
+        <ele>22</ele>
+        <time>2024-04-20T09:17:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2484" lon="121.4917">
+        <ele>23</ele>
+        <time>2024-04-20T09:18:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2494" lon="121.4927">
+        <ele>24</ele>
+        <time>2024-04-20T09:19:00Z</time>
+      </trkpt>
+      <!-- 在陆家嘴绕行 -->
+      <trkpt lat="31.2504" lon="121.4937">
+        <ele>25</ele>
+        <time>2024-04-20T09:20:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2514" lon="121.4927">
+        <ele>26</ele>
+        <time>2024-04-20T09:21:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2524" lon="121.4917">
+        <ele>27</ele>
+        <time>2024-04-20T09:22:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2534" lon="121.4907">
+        <ele>28</ele>
+        <time>2024-04-20T09:23:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2544" lon="121.4897">
+        <ele>29</ele>
+        <time>2024-04-20T09:24:00Z</time>
+      </trkpt>
+      <!-- 转向南 -->
+      <trkpt lat="31.2534" lon="121.4887">
+        <ele>30</ele>
+        <time>2024-04-20T09:25:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2524" lon="121.4877">
+        <ele>31</ele>
+        <time>2024-04-20T09:26:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2514" lon="121.4867">
+        <ele>32</ele>
+        <time>2024-04-20T09:27:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2504" lon="121.4857">
+        <ele>33</ele>
+        <time>2024-04-20T09:28:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2494" lon="121.4847">
+        <ele>34</ele>
+        <time>2024-04-20T09:29:00Z</time>
+      </trkpt>
+      <!-- 继续南行 -->
+      <trkpt lat="31.2484" lon="121.4837">
+        <ele>35</ele>
+        <time>2024-04-20T09:30:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2474" lon="121.4827">
+        <ele>36</ele>
+        <time>2024-04-20T09:31:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2464" lon="121.4817">
+        <ele>37</ele>
+        <time>2024-04-20T09:32:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2454" lon="121.4807">
+        <ele>38</ele>
+        <time>2024-04-20T09:33:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2444" lon="121.4797">
+        <ele>39</ele>
+        <time>2024-04-20T09:34:00Z</time>
+      </trkpt>
+      <!-- 转向西，回到外滩 -->
+      <trkpt lat="31.2434" lon="121.4787">
+        <ele>40</ele>
+        <time>2024-04-20T09:35:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2424" lon="121.4777">
+        <ele>41</ele>
+        <time>2024-04-20T09:36:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2414" lon="121.4767">
+        <ele>42</ele>
+        <time>2024-04-20T09:37:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2404" lon="121.4757">
+        <ele>43</ele>
+        <time>2024-04-20T09:38:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2394" lon="121.4747">
+        <ele>44</ele>
+        <time>2024-04-20T09:39:00Z</time>
+      </trkpt>
+      <!-- 沿外滩南下 -->
+      <trkpt lat="31.2384" lon="121.4737">
+        <ele>45</ele>
+        <time>2024-04-20T09:40:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2374" lon="121.4727">
+        <ele>46</ele>
+        <time>2024-04-20T09:41:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2364" lon="121.4717">
+        <ele>47</ele>
+        <time>2024-04-20T09:42:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2354" lon="121.4707">
+        <ele>48</ele>
+        <time>2024-04-20T09:43:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2344" lon="121.4697">
+        <ele>49</ele>
+        <time>2024-04-20T09:44:00Z</time>
+      </trkpt>
+      <!-- 继续南下 -->
+      <trkpt lat="31.2334" lon="121.4687">
+        <ele>50</ele>
+        <time>2024-04-20T09:45:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2324" lon="121.4677">
+        <ele>51</ele>
+        <time>2024-04-20T09:46:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2314" lon="121.4667">
+        <ele>52</ele>
+        <time>2024-04-20T09:47:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2304" lon="121.4657">
+        <ele>53</ele>
+        <time>2024-04-20T09:48:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2294" lon="121.4647">
+        <ele>54</ele>
+        <time>2024-04-20T09:49:00Z</time>
+      </trkpt>
+      <!-- 转向东北，回到起点 -->
+      <trkpt lat="31.2304" lon="121.4657">
+        <ele>55</ele>
+        <time>2024-04-20T09:50:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2314" lon="121.4667">
+        <ele>56</ele>
+        <time>2024-04-20T09:51:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2324" lon="121.4677">
+        <ele>57</ele>
+        <time>2024-04-20T09:52:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2334" lon="121.4687">
+        <ele>58</ele>
+        <time>2024-04-20T09:53:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2344" lon="121.4697">
+        <ele>59</ele>
+        <time>2024-04-20T09:54:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2354" lon="121.4707">
+        <ele>60</ele>
+        <time>2024-04-20T09:55:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2364" lon="121.4717">
+        <ele>61</ele>
+        <time>2024-04-20T09:56:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2374" lon="121.4727">
+        <ele>62</ele>
+        <time>2024-04-20T09:57:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2384" lon="121.4737">
+        <ele>63</ele>
+        <time>2024-04-20T09:58:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2394" lon="121.4747">
+        <ele>64</ele>
+        <time>2024-04-20T09:59:00Z</time>
+      </trkpt>
+      <trkpt lat="31.2304" lon="121.4737">
+        <ele>65</ele>
+        <time>2024-04-20T10:00:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>
