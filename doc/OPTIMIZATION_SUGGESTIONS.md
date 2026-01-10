@@ -400,10 +400,10 @@ const vectorLayer = this.createTileLayer(vectorUrl, {
 
 **实现细节：**
 ```javascript
-// 添加简单的类型检查工具函数
+// 在 gpx-parser.js 中添加 TypeChecker 工具类
 class TypeChecker {
     static isNumber(value) {
-        return typeof value === 'number' && !isNaN(value);
+        return typeof value === 'number' && !isNaN(value) && isFinite(value);
     }
     
     static isValidCoordinate(lat, lon) {
@@ -413,26 +413,53 @@ class TypeChecker {
     }
     
     static isValidDate(date) {
-        return date instanceof Date && !isNaN(date.getTime());
+        if (date instanceof Date) {
+            return !isNaN(date.getTime());
+        }
+        if (typeof date === 'number') {
+            return date > 0 && date < Number.MAX_SAFE_INTEGER;
+        }
+        return false;
+    }
+    
+    static isNonEmptyArray(arr) {
+        return Array.isArray(arr) && arr.length > 0;
     }
 }
 
-// 在 gpx-parser.js 中使用
+// 在 processPoints 方法中使用
 processPoints(pointNodes, points, trackDates) {
     pointNodes.forEach(point => {
         const lat = parseFloat(point.getAttribute('lat'));
         const lon = parseFloat(point.getAttribute('lon'));
         
-        // 使用类型检查
+        // 使用TypeChecker验证坐标有效性
         if (!TypeChecker.isValidCoordinate(lat, lon)) {
             console.warn(`Invalid coordinate: lat=${lat}, lon=${lon}`);
             return;
         }
         
-        // ... 其他代码 ...
+        // 验证时间戳
+        if (timeElement && timeElement.textContent) {
+            const dateObj = new Date(timeElement.textContent);
+            if (TypeChecker.isValidDate(dateObj)) {
+                timestamp = dateObj.getTime();
+            }
+        }
+        
+        // 验证海拔
+        const eleValue = parseFloat(eleElement.textContent);
+        if (TypeChecker.isNumber(eleValue)) {
+            elevation = eleValue;
+        }
     });
 }
 ```
+
+**效果：**
+- 增强了数据验证的健壮性
+- 提供了统一的类型检查接口
+- 减少了运行时错误
 
 ---
 
