@@ -632,7 +632,7 @@ exportAsGeoJSON() {
 }
 ```
 
-### 15. 本地存储功能 ✅ **已完成**
+### 13. 轨迹点聚类优化 ⚠️ **待实施**（可选）
 
 **建议：**
 ```javascript
@@ -675,6 +675,42 @@ class SpatialIndex {
         }
         
         return points;
+    }
+}
+```
+
+### 15. 本地存储功能 ✅ **已完成**
+
+**已实现：**
+- ✅ **设置自动保存** - 用户设置自动保存到localStorage
+- ✅ **自动恢复** - 下次打开时自动恢复用户设置
+
+**实现细节：**
+```javascript
+// 保存和加载配置
+saveSettings() {
+    const settings = {
+        mapStyle: document.getElementById('mapStyle').value,
+        mapLanguage: document.getElementById('mapLanguage').value,
+        radius: document.getElementById('radius').value,
+        blur: document.getElementById('blur').value,
+        opacity: document.getElementById('opacity').value,
+        dateRange: document.getElementById('dateRange').value
+    };
+    
+    localStorage.setItem('heatmap_settings', JSON.stringify(settings));
+}
+
+loadSettings() {
+    const saved = localStorage.getItem('heatmap_settings');
+    if (saved) {
+        const settings = JSON.parse(saved);
+        document.getElementById('mapStyle').value = settings.mapStyle || 'dark';
+        document.getElementById('mapLanguage').value = settings.mapLanguage || 'en';
+        document.getElementById('radius').value = settings.radius || 1;
+        document.getElementById('blur').value = settings.blur || 1;
+        document.getElementById('opacity').value = settings.opacity || 0.8;
+        document.getElementById('dateRange').value = settings.dateRange || 365;
     }
 }
 ```
