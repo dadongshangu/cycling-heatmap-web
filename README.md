@@ -54,7 +54,7 @@ npx serve .
 ## 📁 项目结构
 
 ```
-bike_heat_web_version/
+cycling-heatmap-web/
 ├── index.html              # 主页面
 ├── donate.JPEG             # 微信赞赏码
 ├── css/
@@ -64,6 +64,16 @@ bike_heat_web_version/
 │   ├── gpx-parser.js      # 轨迹记录GPX解析器
 │   ├── heatmap-renderer.js # 热力图渲染器
 │   └── map-config.js      # 地图配置
+├── scripts/
+│   ├── check-syntax.js    # 语法检查脚本
+│   ├── check-files.js     # 文件完整性检查
+│   ├── check-quality.js   # 代码质量检查
+│   ├── test-all.js        # 综合测试脚本
+│   └── README.md          # 脚本使用说明
+├── doc/
+│   ├── TESTING_GUIDE.md   # 测试指南
+│   ├── DEVELOPER_GUIDE.md # 开发指南
+│   └── BUG_ANALYSIS_AND_PREVENTION.md # 错误分析
 ├── assets/
 │   └── demo/              # 示例轨迹记录GPX
 │       ├── README.md      # 示例文件说明
@@ -376,6 +386,31 @@ git push origin feature/new-feature
 - 添加适当的注释
 - 保持代码整洁
 - 测试新功能
+
+### 提交前测试
+
+项目包含自动测试系统，提交前会自动运行：
+
+```bash
+# 手动运行所有测试
+node scripts/test-all.js
+
+# 单独运行各项测试
+node scripts/check-syntax.js      # 语法检查
+node scripts/check-files.js       # 文件完整性
+node scripts/check-quality.js     # 代码质量
+```
+
+**Git Pre-commit Hook：** 每次 `git commit` 会自动运行测试，失败时阻止提交。
+
+**测试内容：**
+- ✅ JavaScript语法检查
+- ✅ 括号配对验证
+- ✅ 文件完整性检查
+- ✅ HTML结构验证
+- ✅ 代码质量检查
+
+详细说明请参考：`doc/TESTING_GUIDE.md`
 
 ## 📄 许可证
 
