@@ -1,0 +1,44 @@
+# 本地配置文件（如果使用）
+config.local.js
+*.local.js
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 日志文件
+*.log
+npm-debug.log*
+
+# 临时文件
+*.tmp
+*.temp
+
+# 环境变量文件
+.env
+.env.local
+
+# 包含API密钥的文件
+*api*key*
+*secret*
+*config*.js
+!map-config.js
+
+# 测试文件
+test-*
+*TEST*.md
+*TEST*.js
+*TEST*.html
+
+# 转换工具和临时文件
+convert*.py
+convert*.bat
+requirements.txt
+*CONVERT*.md

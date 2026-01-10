@@ -3,9 +3,6 @@
  */
 
 const MAP_CONFIG = {
-    // 天地图API密钥
-    TIANDITU_API_KEY: '70492fcf7d3b99259e9f87ed365982cb',
-    
     // 默认地图设置 (上海)
     DEFAULT_CENTER: [31.2304, 121.4737], // 上海市中心
     DEFAULT_ZOOM: 11,
@@ -20,23 +17,72 @@ const MAP_CONFIG = {
     DANGER_THRESHOLD: 9000,       // 90% 危险警告
     AUTO_SWITCH_THRESHOLD: 9500,  // 95% 自动切换
     
-    // 天地图服务URL模板
-    TIANDITU_URLS: {
-        // 矢量底图
-        VECTOR: 'https://t{s}.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=70492fcf7d3b99259e9f87ed365982cb',
-        
-        // 矢量注记 (中文标注)
-        VECTOR_LABEL: 'https://t{s}.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=70492fcf7d3b99259e9f87ed365982cb',
-        
-        // 影像底图
-        IMAGE: 'https://t{s}.tianditu.gov.cn/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=70492fcf7d3b99259e9f87ed365982cb',
-        
-        // 影像注记 (中文标注)
-        IMAGE_LABEL: 'https://t{s}.tianditu.gov.cn/cia_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cia&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=70492fcf7d3b99259e9f87ed365982cb'
+    // 天地图子域名
+    TIANDITU_SUBDOMAINS: '01234567',
+    
+    /**
+     * 获取天地图API密钥
+     * @returns {string} API密钥，如果未配置则返回空字符串
+     */
+    getApiKey() {
+        return localStorage.getItem('tianditu_api_key') || '';
     },
     
-    // 天地图子域名
-    TIANDITU_SUBDOMAINS: '01234567'
+    /**
+     * 设置天地图API密钥
+     * @param {string} key - API密钥
+     */
+    setApiKey(key) {
+        if (key && key.trim()) {
+            localStorage.setItem('tianditu_api_key', key.trim());
+        } else {
+            localStorage.removeItem('tianditu_api_key');
+        }
+    },
+    
+    /**
+     * 检查是否已配置API密钥
+     * @returns {boolean} 是否已配置密钥
+     */
+    hasApiKey() {
+        const key = this.getApiKey();
+        return key && key.trim().length > 0;
+    },
+    
+    /**
+     * 构建天地图URL
+     * @param {string} layerType - 图层类型 ('vector', 'vector_label', 'image', 'image_label')
+     * @returns {string} 完整的URL模板
+     */
+    buildTiandituUrl(layerType) {
+        const apiKey = this.getApiKey();
+        if (!apiKey) {
+            return '';
+        }
+        
+        const baseUrl = 'https://t{s}.tianditu.gov.cn';
+        const urlTemplates = {
+            'vector': `${baseUrl}/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${apiKey}`,
+            'vector_label': `${baseUrl}/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${apiKey}`,
+            'image': `${baseUrl}/img_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=img&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${apiKey}`,
+            'image_label': `${baseUrl}/cia_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cia&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${apiKey}`
+        };
+        
+        return urlTemplates[layerType] || '';
+    },
+    
+    /**
+     * 获取天地图服务URL（向后兼容）
+     * @returns {Object} URL对象
+     */
+    get TIANDITU_URLS() {
+        return {
+            VECTOR: this.buildTiandituUrl('vector'),
+            VECTOR_LABEL: this.buildTiandituUrl('vector_label'),
+            IMAGE: this.buildTiandituUrl('image'),
+            IMAGE_LABEL: this.buildTiandituUrl('image_label')
+        };
+    }
 };
 
 /**

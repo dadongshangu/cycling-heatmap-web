@@ -16,6 +16,9 @@ class CyclingHeatmapApp {
      * 初始化应用
      */
     initializeApp() {
+        // 检查是否从书签传入API密钥
+        this.setApiKeyFromBookmarklet();
+        
         // 初始化热力图渲染器
         this.heatmapRenderer = new HeatmapRenderer('map');
         
@@ -92,10 +95,35 @@ class CyclingHeatmapApp {
         // 地图语言
         const mapLanguageSelect = document.getElementById('mapLanguage');
         mapLanguageSelect.addEventListener('change', (e) => {
-            this.heatmapRenderer.setMapLanguage(e.target.value);
+            let selectedLanguage = e.target.value;
+            
+            // 如果选择中文地图，检查API密钥
+            if ((selectedLanguage === 'zh-vector' || selectedLanguage === 'zh-satellite') && 
+                !MAP_CONFIG.hasApiKey()) {
+                // 显示友好的提示模态框
+                this.showApiKeyPrompt();
+                // 自动切换回英文地图
+                e.target.value = 'en';
+                selectedLanguage = 'en';
+            }
+            
+            this.heatmapRenderer.setMapLanguage(selectedLanguage);
             
             // 更新API使用量面板的显示状态
-            this.updateApiUsagePanelVisibility(e.target.value);
+            this.updateApiUsagePanelVisibility(selectedLanguage);
+        });
+        
+        // 监听API密钥缺失事件
+        document.addEventListener('tiandituApiKeyMissing', () => {
+            // 如果当前选择的是中文地图，显示提示
+            const currentLanguage = document.getElementById('mapLanguage').value;
+            if (currentLanguage === 'zh-vector' || currentLanguage === 'zh-satellite') {
+                this.showApiKeyPrompt();
+                // 自动切换回英文地图
+                document.getElementById('mapLanguage').value = 'en';
+                this.heatmapRenderer.setMapLanguage('en');
+                this.updateApiUsagePanelVisibility('en');
+            }
         });
 
         // 滑块控件
@@ -543,6 +571,185 @@ class CyclingHeatmapApp {
     }
 
     /**
+     * 显示API密钥提示模态框
+     */
+    showApiKeyPrompt() {
+        const promptModal = document.getElementById('apiKeyPromptModal');
+        if (promptModal) {
+            promptModal.style.display = 'flex';
+        }
+    }
+
+    /**
+     * 关闭API密钥提示模态框
+     */
+    closeApiKeyPrompt() {
+        const promptModal = document.getElementById('apiKeyPromptModal');
+        if (promptModal) {
+            promptModal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 显示API密钥配置模态框
+     */
+    showApiKeyConfig() {
+        const configModal = document.getElementById('apiKeyConfigModal');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        
+        if (configModal && apiKeyInput) {
+            // 加载已保存的密钥（如果有）
+            const savedKey = MAP_CONFIG.getApiKey();
+            apiKeyInput.value = savedKey;
+            configModal.style.display = 'flex';
+        }
+    }
+
+    /**
+     * 关闭API密钥配置模态框
+     */
+    closeApiKeyConfig() {
+        const configModal = document.getElementById('apiKeyConfigModal');
+        if (configModal) {
+            configModal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 保存API密钥
+     */
+    saveApiKey() {
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        if (!apiKeyInput) return;
+
+        const apiKey = apiKeyInput.value.trim();
+        
+        if (apiKey) {
+            MAP_CONFIG.setApiKey(apiKey);
+            this.showMessage('API密钥已保存！', 'success');
+            this.closeApiKeyConfig();
+            
+            // 如果当前选择的是中文地图，重新加载地图
+            const currentLanguage = document.getElementById('mapLanguage').value;
+            if (currentLanguage === 'zh-vector' || currentLanguage === 'zh-satellite') {
+                this.heatmapRenderer.setMapLanguage(currentLanguage);
+            }
+        } else {
+            // 清除密钥
+            MAP_CONFIG.setApiKey('');
+            this.showMessage('API密钥已清除', 'info');
+            this.closeApiKeyConfig();
+        }
+    }
+
+    /**
+     * 生成自动设置书签（包含密钥）
+     */
+    generateBookmarklet() {
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        if (!apiKeyInput) return;
+
+        const apiKey = apiKeyInput.value.trim();
+        
+        if (!apiKey) {
+            this.showMessage('请先输入API密钥', 'warning');
+            return;
+        }
+
+        // 创建书签JavaScript代码
+        // 使用Base64编码密钥，避免URL特殊字符问题
+        const encodedKey = btoa(apiKey);
+        const bookmarkletCode = `javascript:(function(){try{const key=atob('${encodedKey}');if(typeof MAP_CONFIG!=='undefined'){MAP_CONFIG.setApiKey(key);alert('✅ API密钥已设置！\\n\\n页面将自动刷新以应用更改。');location.reload();}else{localStorage.setItem('tianditu_api_key',key);alert('✅ API密钥已保存！\\n\\n请刷新页面。');location.reload();}}catch(e){alert('❌ 设置失败：'+e.message);}})();`;
+
+        // 显示书签链接
+        const bookmarkletContainer = document.getElementById('bookmarkletContainer');
+        const bookmarkletLink = document.getElementById('bookmarkletLink');
+        
+        if (bookmarkletContainer && bookmarkletLink) {
+            bookmarkletLink.href = bookmarkletCode;
+            bookmarkletLink.textContent = '🔑 设置API密钥';
+            bookmarkletContainer.style.display = 'block';
+            
+            // 滚动到书签区域
+            bookmarkletContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            this.showMessage('✅ 自动设置书签已生成！请拖拽链接到浏览器书签栏', 'success');
+        }
+    }
+
+    /**
+     * 显示输入式书签（弹出输入框）
+     */
+    showInputBookmarklet() {
+        // 输入式书签代码（不包含密钥，点击后弹出输入框）
+        const inputBookmarkletCode = `javascript:(function(){const key=prompt('请输入天地图API密钥：','');if(key&&key.trim()){if(typeof MAP_CONFIG!=='undefined'){MAP_CONFIG.setApiKey(key.trim());alert('✅ API密钥已设置！\\n\\n页面将自动刷新以应用更改。');location.reload();}else{localStorage.setItem('tianditu_api_key',key.trim());alert('✅ API密钥已保存！\\n\\n请刷新页面。');location.reload();}}else if(key!==null){alert('❌ 密钥不能为空');}})();`;
+
+        // 创建临时模态框显示书签
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        modal.style.cssText = 'display: flex; z-index: 3000;';
+        modal.innerHTML = `
+            <div class="modal-content" style="max-width: 500px;">
+                <span class="close" onclick="this.closest('.modal').remove()">&times;</span>
+                <h2>📝 输入式书签</h2>
+                <div style="padding: 10px 0;">
+                    <p style="margin-bottom: 15px; line-height: 1.6; color: #6c757d;">
+                        这个书签不包含密钥，点击后会弹出输入框让您输入密钥。更安全，但需要每次输入。
+                    </p>
+                    <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 1px solid #dee2e6;">
+                        <p style="margin: 0 0 8px 0; font-size: 0.85rem; color: #6c757d; font-weight: 600;">📌 拖拽下面的链接到浏览器书签栏：</p>
+                        <a href="${inputBookmarkletCode}" 
+                           style="display: inline-block; padding: 8px 12px; background: #17a2b8; color: white; text-decoration: none; border-radius: 4px; font-size: 0.85rem; cursor: move;">
+                            📝 输入API密钥
+                        </a>
+                    </div>
+                    <button class="upload-btn" onclick="this.closest('.modal').remove()" style="width: 100%;">
+                        关闭
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // 点击外部关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+    }
+
+    /**
+     * 从URL参数设置API密钥（用于书签）
+     */
+    setApiKeyFromBookmarklet() {
+        // 检查URL中是否有密钥参数
+        const urlParams = new URLSearchParams(window.location.search);
+        const keyParam = urlParams.get('apikey');
+        
+        if (keyParam) {
+            try {
+                // 如果是Base64编码的，尝试解码
+                const decodedKey = atob(keyParam);
+                if (decodedKey && decodedKey.length > 0) {
+                    MAP_CONFIG.setApiKey(decodedKey);
+                    // 移除URL参数，保护隐私
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                    return true;
+                }
+            } catch (e) {
+                // 如果不是Base64，直接使用
+                MAP_CONFIG.setApiKey(keyParam);
+                window.history.replaceState({}, document.title, window.location.pathname);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    /**
      * 更新UI状态
      */
     updateUI() {
@@ -646,6 +853,8 @@ window.addEventListener('click', (e) => {
     const helpModal = document.getElementById('helpModal');
     const gpxGuideModal = document.getElementById('gpxGuideModal');
     const donateModal = document.getElementById('donateModal');
+    const apiKeyPromptModal = document.getElementById('apiKeyPromptModal');
+    const apiKeyConfigModal = document.getElementById('apiKeyConfigModal');
     
     if (e.target === helpModal) {
         closeHelp();
@@ -657,6 +866,14 @@ window.addEventListener('click', (e) => {
     
     if (e.target === donateModal) {
         closeDonate();
+    }
+    
+    if (e.target === apiKeyPromptModal && window.app) {
+        window.app.closeApiKeyPrompt();
+    }
+    
+    if (e.target === apiKeyConfigModal && window.app) {
+        window.app.closeApiKeyConfig();
     }
 });
 

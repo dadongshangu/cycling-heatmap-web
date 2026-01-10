@@ -83,6 +83,20 @@ class HeatmapRenderer {
     }
 
     /**
+     * 触发API密钥缺失事件
+     */
+    triggerApiKeyMissingEvent() {
+        // 触发自定义事件，通知主应用显示提示
+        const event = new CustomEvent('tiandituApiKeyMissing', {
+            detail: {
+                reason: '未配置API密钥',
+                message: '中文地图需要天地图API密钥，已自动切换到英文地图'
+            }
+        });
+        document.dispatchEvent(event);
+    }
+
+    /**
      * 设置地图样式
      * @param {string} style - 地图样式 ('dark' 或 'light')
      */
@@ -145,6 +159,15 @@ class HeatmapRenderer {
         if (typeof MAP_CONFIG === 'undefined') {
             console.warn('MAP_CONFIG未加载，切换到英文地图');
             this.createEnglishLayers();
+            this.triggerApiKeyMissingEvent();
+            return;
+        }
+
+        // 检查API密钥是否已配置
+        if (!MAP_CONFIG.hasApiKey()) {
+            console.warn('未配置天地图API密钥，切换到英文地图');
+            this.createEnglishLayers();
+            this.triggerApiKeyMissingEvent();
             return;
         }
 
@@ -154,15 +177,25 @@ class HeatmapRenderer {
             return;
         }
 
+        const vectorUrl = MAP_CONFIG.buildTiandituUrl('vector');
+        const labelUrl = MAP_CONFIG.buildTiandituUrl('vector_label');
+
+        if (!vectorUrl || !labelUrl) {
+            console.warn('无法构建天地图URL，切换到英文地图');
+            this.createEnglishLayers();
+            this.triggerApiKeyMissingEvent();
+            return;
+        }
+
         // 创建矢量底图层
-        const vectorLayer = L.tileLayer(MAP_CONFIG.TIANDITU_URLS.VECTOR, {
+        const vectorLayer = L.tileLayer(vectorUrl, {
             attribution: '&copy; <a href="http://www.tianditu.gov.cn/">天地图</a>',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18
         });
 
         // 创建中文标注层
-        const labelLayer = L.tileLayer(MAP_CONFIG.TIANDITU_URLS.VECTOR_LABEL, {
+        const labelLayer = L.tileLayer(labelUrl, {
             attribution: '',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18
@@ -206,6 +239,15 @@ class HeatmapRenderer {
         if (typeof MAP_CONFIG === 'undefined') {
             console.warn('MAP_CONFIG未加载，切换到英文地图');
             this.createEnglishLayers();
+            this.triggerApiKeyMissingEvent();
+            return;
+        }
+
+        // 检查API密钥是否已配置
+        if (!MAP_CONFIG.hasApiKey()) {
+            console.warn('未配置天地图API密钥，切换到英文地图');
+            this.createEnglishLayers();
+            this.triggerApiKeyMissingEvent();
             return;
         }
 
@@ -215,15 +257,25 @@ class HeatmapRenderer {
             return;
         }
 
+        const imageUrl = MAP_CONFIG.buildTiandituUrl('image');
+        const imageLabelUrl = MAP_CONFIG.buildTiandituUrl('image_label');
+
+        if (!imageUrl || !imageLabelUrl) {
+            console.warn('无法构建天地图URL，切换到英文地图');
+            this.createEnglishLayers();
+            this.triggerApiKeyMissingEvent();
+            return;
+        }
+
         // 创建影像底图层
-        const imageLayer = L.tileLayer(MAP_CONFIG.TIANDITU_URLS.IMAGE, {
+        const imageLayer = L.tileLayer(imageUrl, {
             attribution: '&copy; <a href="http://www.tianditu.gov.cn/">天地图</a>',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18
         });
 
         // 创建影像标注层
-        const imageLabelLayer = L.tileLayer(MAP_CONFIG.TIANDITU_URLS.IMAGE_LABEL, {
+        const imageLabelLayer = L.tileLayer(imageLabelUrl, {
             attribution: '',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18
