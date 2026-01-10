@@ -22,6 +22,12 @@ class HeatmapRenderer {
             maxZoom: 18
         };
         
+        // 空间索引相关
+        this.spatialIndex = null;
+        this.useSpatialIndex = false;
+        this.spatialIndexThreshold = 100000; // 超过10万点才启用空间索引
+        this.updateVisibleHeatmapDebounced = null;
+        
         this.initializeMap();
         this.bindAutoSwitchEvent();
     }
@@ -52,6 +58,10 @@ class HeatmapRenderer {
         // 添加地图事件监听
         this.map.on('zoomend', () => {
             this.updateHeatmapZoom();
+            // 如果使用空间索引，缩放后更新可见点
+            if (this.useSpatialIndex) {
+                this.updateVisibleHeatmap();
+            }
         });
     }
 
@@ -411,6 +421,35 @@ class HeatmapRenderer {
 
         this.currentPoints = points;
 
+        // 判断是否需要使用空间索引（只在超大数据集时启用）
+        this.useSpatialIndex = points.length > this.spatialIndexThreshold;
+        
+        if (this.useSpatialIndex) {
+            // 构建空间索引
+            this.spatialIndex = new HeatmapRenderer.SpatialIndex(points);
+            console.log(`✓ 已构建空间索引，共 ${points.length.toLocaleString()} 个点`);
+            
+            // 绑定地图移动事件，动态更新可见点
+            this.bindMapMoveEvents();
+            
+            // 初始渲染：先调整地图视图，然后只渲染当前视野范围内的点
+            // 先调整视图以显示所有点
+            if (!this.map.hasInitialBounds) {
+                this.fitMapToPoints(points);
+                this.map.hasInitialBounds = true;
+            }
+            
+            // 获取当前视野范围内的点
+            const bounds = this.map.getBounds();
+            const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
+            points = visiblePoints;
+            console.log(`✓ 空间索引：当前视野内 ${visiblePoints.length.toLocaleString()} 个点`);
+        } else {
+            // 小数据集：清除空间索引，移除事件监听
+            this.spatialIndex = null;
+            this.unbindMapMoveEvents();
+        }
+
         // 移除现有的热力图层
         if (this.heatLayer) {
             this.map.removeLayer(this.heatLayer);
@@ -428,8 +467,11 @@ class HeatmapRenderer {
         // 添加到地图
         this.heatLayer.addTo(this.map);
 
-        // 自动调整地图视图以显示所有点
-        this.fitMapToPoints(points);
+        // 自动调整地图视图以显示所有点（仅在小数据集或首次渲染时）
+        if (!this.useSpatialIndex && !this.map.hasInitialBounds) {
+            this.fitMapToPoints(this.currentPoints);
+            this.map.hasInitialBounds = true;
+        }
 
         console.log(`✓ 热力图渲染完成，共 ${points.length.toLocaleString()} 个点`);
     }
@@ -522,9 +564,157 @@ class HeatmapRenderer {
     }
 
     /**
+     * 空间索引类 - 用于优化超大数据集的热力图渲染
+     */
+    static SpatialIndex = class {
+        constructor(points, cellSize = 0.01) {
+            this.cellSize = cellSize;
+            this.grid = new Map();
+            this.points = points;
+            
+            // 构建空间网格索引
+            points.forEach((point, index) => {
+                const key = this.getCellKey(point[0], point[1]);
+                if (!this.grid.has(key)) {
+                    this.grid.set(key, []);
+                }
+                this.grid.get(key).push(index);
+            });
+        }
+        
+        /**
+         * 获取点的网格键
+         * @param {number} lat - 纬度
+         * @param {number} lon - 经度
+         * @returns {string} 网格键
+         */
+        getCellKey(lat, lon) {
+            const latCell = Math.floor(lat / this.cellSize);
+            const lonCell = Math.floor(lon / this.cellSize);
+            return `${latCell},${lonCell}`;
+        }
+        
+        /**
+         * 获取指定边界范围内的点
+         * @param {L.LatLngBounds} bounds - 地图边界
+         * @returns {Array} 可见点数组
+         */
+        getPointsInBounds(bounds) {
+            const visiblePoints = [];
+            const minLat = bounds.getSouth();
+            const maxLat = bounds.getNorth();
+            const minLon = bounds.getWest();
+            const maxLon = bounds.getEast();
+            
+            // 扩展边界，确保边缘的点也被包含（避免边界切割）
+            const padding = this.cellSize * 2;
+            const expandedMinLat = minLat - padding;
+            const expandedMaxLat = maxLat + padding;
+            const expandedMinLon = minLon - padding;
+            const expandedMaxLon = maxLon + padding;
+            
+            const minLatCell = Math.floor(expandedMinLat / this.cellSize);
+            const maxLatCell = Math.floor(expandedMaxLat / this.cellSize);
+            const minLonCell = Math.floor(expandedMinLon / this.cellSize);
+            const maxLonCell = Math.floor(expandedMaxLon / this.cellSize);
+            
+            // 遍历相关网格单元
+            for (let lat = minLatCell; lat <= maxLatCell; lat++) {
+                for (let lon = minLonCell; lon <= maxLonCell; lon++) {
+                    const key = `${lat},${lon}`;
+                    if (this.grid.has(key)) {
+                        const indices = this.grid.get(key);
+                        indices.forEach(idx => {
+                            const point = this.points[idx];
+                            // 精确检查点是否在边界内
+                            if (point[0] >= minLat && point[0] <= maxLat &&
+                                point[1] >= minLon && point[1] <= maxLon) {
+                                visiblePoints.push(point);
+                            }
+                        });
+                    }
+                }
+            }
+            
+            return visiblePoints;
+        }
+    };
+
+    /**
+     * 绑定地图移动事件，用于动态更新可见热力图
+     */
+    bindMapMoveEvents() {
+        if (this.updateVisibleHeatmapDebounced) {
+            return; // 已经绑定
+        }
+        
+        // 防抖处理，避免频繁更新
+        let timeout = null;
+        this.updateVisibleHeatmapDebounced = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                this.updateVisibleHeatmap();
+            }, 150); // 150ms防抖
+        };
+        
+        this.map.on('moveend', this.updateVisibleHeatmapDebounced);
+    }
+
+    /**
+     * 解绑地图移动事件
+     */
+    unbindMapMoveEvents() {
+        if (this.updateVisibleHeatmapDebounced) {
+            this.map.off('moveend', this.updateVisibleHeatmapDebounced);
+            this.updateVisibleHeatmapDebounced = null;
+        }
+    }
+
+    /**
+     * 更新可见热力图（仅渲染当前视野范围内的点）
+     */
+    updateVisibleHeatmap() {
+        if (!this.useSpatialIndex || !this.spatialIndex || !this.heatLayer) {
+            return;
+        }
+
+        const bounds = this.map.getBounds();
+        const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
+
+        if (visiblePoints.length === 0) {
+            return;
+        }
+
+        // Leaflet heatLayer 不支持 setLatLngs，需要重新创建图层
+        // 但保留当前的选项设置
+        const currentOptions = {
+            radius: this.heatmapOptions.radius,
+            blur: this.heatmapOptions.blur,
+            minOpacity: this.heatmapOptions.minOpacity,
+            maxZoom: this.heatmapOptions.maxZoom,
+            gradient: this.getStravaGradient()
+        };
+        
+        // 移除旧图层
+        this.map.removeLayer(this.heatLayer);
+        
+        // 创建新图层
+        this.heatLayer = L.heatLayer(visiblePoints, currentOptions);
+        this.heatLayer.addTo(this.map);
+    }
+
+    /**
      * 清除热力图
      */
     clearHeatmap() {
+        // 清除空间索引相关
+        this.spatialIndex = null;
+        this.useSpatialIndex = false;
+        this.unbindMapMoveEvents();
+        if (this.map) {
+            this.map.hasInitialBounds = false;
+        }
+        
         if (this.heatLayer) {
             this.map.removeLayer(this.heatLayer);
             this.heatLayer = null;
