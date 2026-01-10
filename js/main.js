@@ -870,9 +870,9 @@ class CyclingHeatmapApp {
             let finalPoints = filteredPoints;
             
             if (filteredPoints.length > maxPoints) {
-                this.showLoading(true, `数据点过多(${filteredPoints.length.toLocaleString()}个)，正在优化...`);
+                this.showLoading(true, `数据点过多(${filteredPoints.length.toLocaleString()}个)，正在使用智能算法优化...`);
                 finalPoints = this.samplePoints(filteredPoints, maxPoints);
-                this.showMessage(`为了性能优化，已将 ${filteredPoints.length.toLocaleString()} 个点采样为 ${finalPoints.length.toLocaleString()} 个点`, 'info');
+                this.showMessage(`为了性能优化，已使用Douglas-Peucker算法将 ${filteredPoints.length.toLocaleString()} 个点优化为 ${finalPoints.length.toLocaleString()} 个点，保持轨迹形状`, 'info');
             }
             
             // 更新热力图参数
@@ -926,8 +926,101 @@ class CyclingHeatmapApp {
     }
 
     /**
-     * 对轨迹点进行采样，减少数据量
-     * @param {Array} points - 原始轨迹点
+     * 计算两点之间的距离（Haversine公式，用于地理坐标）
+     * @param {Array} point1 - [lat, lon]
+     * @param {Array} point2 - [lat, lon]
+     * @returns {number} 距离（米）
+     */
+    calculateDistance(point1, point2) {
+        const R = 6371000; // 地球半径（米）
+        const lat1 = point1[0] * Math.PI / 180;
+        const lat2 = point2[0] * Math.PI / 180;
+        const deltaLat = (point2[0] - point1[0]) * Math.PI / 180;
+        const deltaLon = (point2[1] - point1[1]) * Math.PI / 180;
+        
+        const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+                  Math.cos(lat1) * Math.cos(lat2) *
+                  Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        
+        return R * c;
+    }
+
+    /**
+     * 计算点到线段的垂直距离（简化版，用于Douglas-Peucker算法）
+     * @param {Array} point - [lat, lon] 要计算距离的点
+     * @param {Array} lineStart - [lat, lon] 线段起点
+     * @param {Array} lineEnd - [lat, lon] 线段终点
+     * @returns {number} 垂直距离（度）
+     */
+    perpendicularDistance(point, lineStart, lineEnd) {
+        const dx = lineEnd[1] - lineStart[1];
+        const dy = lineEnd[0] - lineStart[0];
+        
+        if (dx === 0 && dy === 0) {
+            // 起点和终点相同，计算到点的距离
+            return Math.sqrt(
+                Math.pow(point[1] - lineStart[1], 2) +
+                Math.pow(point[0] - lineStart[0], 2)
+            );
+        }
+        
+        // 计算点到直线的距离
+        const numerator = Math.abs(
+            dy * point[1] - dx * point[0] +
+            lineEnd[1] * lineStart[0] - lineEnd[0] * lineStart[1]
+        );
+        const denominator = Math.sqrt(dx * dx + dy * dy);
+        
+        return denominator === 0 ? 0 : numerator / denominator;
+    }
+
+    /**
+     * Douglas-Peucker算法简化轨迹
+     * @param {Array} points - 原始轨迹点 [[lat, lon], ...]
+     * @param {number} tolerance - 容差（度），值越小保留的点越多
+     * @returns {Array} 简化后的轨迹点
+     */
+    simplifyTrack(points, tolerance = 0.0001) {
+        if (points.length <= 2) {
+            return points;
+        }
+        
+        // 找到距离起点和终点连线最远的点
+        let maxDistance = 0;
+        let maxIndex = 0;
+        const end = points.length - 1;
+        
+        for (let i = 1; i < end; i++) {
+            const distance = this.perpendicularDistance(
+                points[i],
+                points[0],
+                points[end]
+            );
+            
+            if (distance > maxDistance) {
+                maxDistance = distance;
+                maxIndex = i;
+            }
+        }
+        
+        // 如果最远点距离大于容差，递归简化
+        if (maxDistance > tolerance) {
+            const left = this.simplifyTrack(points.slice(0, maxIndex + 1), tolerance);
+            const right = this.simplifyTrack(points.slice(maxIndex), tolerance);
+            
+            // 合并结果，去除重复的中间点
+            return left.slice(0, -1).concat(right);
+        } else {
+            // 所有点都在容差范围内，只保留起点和终点
+            return [points[0], points[end]];
+        }
+    }
+
+    /**
+     * 对轨迹点进行智能采样，减少数据量
+     * 优先使用Douglas-Peucker算法保持轨迹形状，如果还不够则进行均匀采样
+     * @param {Array} points - 原始轨迹点 [[lat, lon], ...]
      * @param {number} maxPoints - 最大点数
      * @returns {Array} 采样后的轨迹点
      */
@@ -936,14 +1029,32 @@ class CyclingHeatmapApp {
             return points;
         }
         
-        const sampledPoints = [];
-        const step = points.length / maxPoints;
+        // 首先尝试使用Douglas-Peucker算法简化
+        // 从较小的容差开始，逐步增大直到点数符合要求
+        let tolerance = 0.00001; // 初始容差（约1米）
+        let simplified = points;
+        let attempts = 0;
+        const maxAttempts = 10;
         
-        for (let i = 0; i < points.length; i += step) {
-            sampledPoints.push(points[Math.floor(i)]);
+        while (simplified.length > maxPoints && attempts < maxAttempts) {
+            simplified = this.simplifyTrack(points, tolerance);
+            tolerance *= 2; // 增大容差
+            attempts++;
         }
         
-        return sampledPoints;
+        // 如果Douglas-Peucker简化后仍然超过最大点数，进行均匀采样
+        if (simplified.length > maxPoints) {
+            const sampledPoints = [];
+            const step = simplified.length / maxPoints;
+            
+            for (let i = 0; i < simplified.length; i += step) {
+                sampledPoints.push(simplified[Math.floor(i)]);
+            }
+            
+            return sampledPoints;
+        }
+        
+        return simplified;
     }
 
     /**
