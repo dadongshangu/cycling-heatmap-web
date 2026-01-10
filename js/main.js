@@ -1711,37 +1711,26 @@ class CyclingHeatmapApp {
             
             // 尝试Web Share API（优先）
             this.showLoading(true, '正在准备分享...');
-            try {
-                const shared = await this.heatmapRenderer.shareImageWithWebShare(dataURL, filename);
-                
-                if (shared) {
-                    this.showLoading(false);
-                    this.showMessage('热力图已分享，请选择保存到相册', 'success');
-                    return;
-                }
-            } catch (shareError) {
-                logger.warn('Web Share API失败，降级到下载:', shareError);
+            const shared = await this.heatmapRenderer.shareImageWithWebShare(dataURL, filename);
+            
+            if (shared) {
+                this.showLoading(false);
+                this.showMessage('热力图已分享，请选择保存到相册', 'success');
+                return;
             }
             
-            // Web Share API不支持或失败，降级到下载或显示模态框
-            this.showLoading(false);
-            
-            // 移动端：直接显示模态框（更可靠）
-            // downloadImage在移动端会尝试下载，但可能被浏览器阻止
-            // 直接显示模态框让用户长按保存更可靠
+            // Web Share API不支持或失败，降级到下载
+            this.showLoading(true, '正在保存图片...');
             try {
+                this.heatmapRenderer.downloadImage(dataURL, filename);
+                this.showLoading(false);
+                this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
+            } catch (downloadError) {
+                // 下载也失败，显示模态框
+                logger.warn('下载失败，显示图片模态框:', downloadError);
                 this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
+                this.showLoading(false);
                 this.showMessage('图片已显示，请长按保存', 'success');
-            } catch (modalError) {
-                logger.error('显示图片模态框失败:', modalError);
-                // 如果模态框也失败，尝试downloadImage作为最后手段
-                try {
-                    this.heatmapRenderer.downloadImage(dataURL, filename);
-                    this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
-                } catch (downloadError) {
-                    this.showMessage('导出失败，请使用截屏功能', 'error');
-                    this.showScreenshotGuide();
-                }
             }
             
         } catch (error) {
