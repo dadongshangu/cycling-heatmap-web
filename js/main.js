@@ -8,6 +8,7 @@ class CyclingHeatmapApp {
         this.heatmapRenderer = null;
         this.loadedTracks = [];
         this.isProcessing = false;
+        this.startTime = null; // 用于计算处理时间
         
         this.initializeApp();
     }
@@ -16,6 +17,9 @@ class CyclingHeatmapApp {
      * 初始化应用
      */
     initializeApp() {
+        // 初始化全局错误处理
+        this.initErrorHandling();
+        
         // 检查是否从书签传入API密钥
         this.setApiKeyFromBookmarklet();
         
@@ -28,10 +32,71 @@ class CyclingHeatmapApp {
         // 绑定事件监听器
         this.bindEventListeners();
         
+        // 加载保存的设置
+        this.loadSettings();
+        
         // 初始化UI状态
         this.updateUI();
         
         console.log('🚴 Cycling Heatmap Generator 已启动');
+    }
+
+    /**
+     * 初始化全局错误处理
+     */
+    initErrorHandling() {
+        // 捕获全局JavaScript错误
+        window.addEventListener('error', (event) => {
+            console.error('Global JavaScript error:', event.error);
+            this.logError('JavaScript Error', {
+                message: event.error?.message || event.message,
+                stack: event.error?.stack,
+                filename: event.filename,
+                lineno: event.lineno,
+                colno: event.colno
+            });
+            
+            // 显示用户友好的错误提示
+            if (!event.error || !event.error.message || !event.error.message.includes('Script error')) {
+                this.showMessage('发生了一个错误，请刷新页面重试', 'error');
+            }
+        });
+        
+        // 捕获未处理的Promise拒绝
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            this.logError('Unhandled Promise Rejection', {
+                reason: event.reason?.toString() || String(event.reason),
+                stack: event.reason?.stack
+            });
+            
+            // 显示用户友好的错误提示
+            const errorMsg = event.reason?.message || String(event.reason);
+            if (errorMsg && !errorMsg.includes('abort')) {
+                this.showMessage('处理过程中发生错误，请重试', 'error');
+            }
+        });
+    }
+
+    /**
+     * 记录错误日志
+     */
+    logError(type, details) {
+        const errorLog = {
+            type,
+            details,
+            timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            url: window.location.href
+        };
+        
+        // 在开发环境或调试模式下输出详细错误信息
+        if (console && console.error) {
+            console.error(`[ErrorHandler] ${type}:`, errorLog);
+        }
+        
+        // 可以在这里添加错误上报逻辑（如发送到错误监控服务）
+        // 例如：if (window.Sentry) { window.Sentry.captureException(error); }
     }
 
     /**
@@ -105,6 +170,44 @@ class CyclingHeatmapApp {
         
         // 检测全屏API支持，如果不支持则隐藏全屏按钮
         this.checkFullscreenSupport(fullscreenBtn);
+        
+        // 绑定键盘快捷键
+        this.bindKeyboardShortcuts();
+    }
+
+    /**
+     * 绑定键盘快捷键
+     */
+    bindKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + O: 打开文件选择对话框
+            if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+                e.preventDefault();
+                const fileInput = document.getElementById('fileInput');
+                if (fileInput) {
+                    fileInput.click();
+                }
+            }
+            
+            // Ctrl/Cmd + G: 生成热力图
+            if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
+                e.preventDefault();
+                const generateBtn = document.getElementById('generateBtn');
+                if (generateBtn && !generateBtn.disabled) {
+                    this.generateHeatmap();
+                }
+            }
+            
+            // Esc: 关闭所有打开的模态框
+            if (e.key === 'Escape') {
+                const modals = document.querySelectorAll('.modal');
+                modals.forEach(modal => {
+                    if (modal.style.display !== 'none' && modal.style.display !== '') {
+                        modal.style.display = 'none';
+                    }
+                });
+            }
+        });
     }
 
     /**
@@ -133,6 +236,7 @@ class CyclingHeatmapApp {
         const mapStyleSelect = document.getElementById('mapStyle');
         mapStyleSelect.addEventListener('change', (e) => {
             this.heatmapRenderer.setMapStyle(e.target.value);
+            this.saveSettings(); // 保存设置
         });
 
         // 地图语言
@@ -154,6 +258,8 @@ class CyclingHeatmapApp {
             
             // 更新API使用量面板的显示状态
             this.updateApiUsagePanelVisibility(selectedLanguage);
+            
+            this.saveSettings(); // 保存设置
         });
         
         // 监听API密钥缺失事件
@@ -186,6 +292,7 @@ class CyclingHeatmapApp {
                 if (this.loadedTracks.length > 0 && this.heatmapRenderer) {
                     this.updateHeatmapParameters();
                 }
+                this.saveSettings(); // 保存设置
             }, 300);
             
             slider.addEventListener('change', debouncedUpdate);
@@ -197,6 +304,7 @@ class CyclingHeatmapApp {
             if (this.loadedTracks.length > 0) {
                 this.updateHeatmapWithDateFilter();
             }
+            this.saveSettings(); // 保存设置
         });
     }
 
@@ -350,11 +458,13 @@ class CyclingHeatmapApp {
             return;
         }
 
-        // 文件大小验证（50MB限制）
-        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+        // 文件大小验证
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 单个文件最大50MB
+        const MAX_TOTAL_SIZE = 200 * 1024 * 1024; // 总大小最大200MB
         const validFiles = [];
         const oversizedFiles = [];
         
+        // 验证单个文件大小
         files.forEach(file => {
             if (file.size > MAX_FILE_SIZE) {
                 oversizedFiles.push({
@@ -365,6 +475,18 @@ class CyclingHeatmapApp {
                 validFiles.push(file);
             }
         });
+        
+        // 验证总大小
+        if (validFiles.length > 0) {
+            const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+            if (totalSize > MAX_TOTAL_SIZE) {
+                this.showMessage(
+                    `文件总大小超过限制（${(MAX_TOTAL_SIZE / (1024 * 1024)).toFixed(0)}MB），请分批上传`,
+                    'error'
+                );
+                return;
+            }
+        }
         
         if (oversizedFiles.length > 0) {
             const fileList = oversizedFiles.map(f => `${f.name} (${f.size})`).join(', ');
@@ -379,6 +501,8 @@ class CyclingHeatmapApp {
             return;
         }
 
+        // 记录开始时间，用于估算剩余时间
+        this.startTime = Date.now();
         this.isProcessing = true;
         this.showLoading(true);
         
@@ -471,7 +595,25 @@ class CyclingHeatmapApp {
         progressFill.style.width = percentage + '%';
         
         if (progress.status === 'processing') {
-            loadingText.textContent = `正在处理: ${progress.filename} (${progress.current}/${progress.total})`;
+            // 估算剩余时间
+            let timeText = '';
+            if (this.startTime && progress.current > 0) {
+                const elapsed = Date.now() - this.startTime;
+                const avgTimePerFile = elapsed / progress.current;
+                const remaining = Math.ceil((progress.total - progress.current) * avgTimePerFile / 1000);
+                
+                if (remaining > 0) {
+                    if (remaining < 60) {
+                        timeText = ` - 预计剩余 ${remaining}秒`;
+                    } else {
+                        const minutes = Math.floor(remaining / 60);
+                        const seconds = remaining % 60;
+                        timeText = ` - 预计剩余 ${minutes}分${seconds}秒`;
+                    }
+                }
+            }
+            
+            loadingText.textContent = `正在处理: ${progress.filename} (${progress.current}/${progress.total})${timeText}`;
         } else if (progress.status === 'completed') {
             loadingText.textContent = `已完成: ${progress.filename} - ${progress.points} 个点`;
         } else if (progress.status === 'error') {
@@ -533,19 +675,139 @@ class CyclingHeatmapApp {
      * 清除所有文件
      */
     clearAllFiles() {
+        // 清除数据
         this.loadedTracks = [];
         this.gpxParser.clear();
-        this.heatmapRenderer.clearHeatmap();
         
+        // 清除热力图和释放内存
+        if (this.heatmapRenderer) {
+            this.heatmapRenderer.clearHeatmap();
+            // 清理当前点数据
+            if (this.heatmapRenderer.currentPoints) {
+                this.heatmapRenderer.currentPoints = [];
+            }
+        }
+        
+        // 重置处理状态
+        this.isProcessing = false;
+        this.startTime = null;
+        
+        // 重置UI
         document.getElementById('fileList').style.display = 'none';
         document.getElementById('statsSection').style.display = 'none';
         document.getElementById('generateBtn').disabled = true;
         document.getElementById('exportBtn').disabled = true;
         
         // 重置文件输入
-        document.getElementById('fileInput').value = '';
+        const fileInput = document.getElementById('fileInput');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+        
+        // 隐藏加载状态
+        this.showLoading(false);
         
         this.showMessage('已清除所有文件', 'info');
+    }
+
+    /**
+     * 保存用户设置到本地存储
+     */
+    saveSettings() {
+        try {
+            const settings = {
+                mapStyle: document.getElementById('mapStyle')?.value || 'dark',
+                mapLanguage: document.getElementById('mapLanguage')?.value || 'en',
+                radius: document.getElementById('radius')?.value || '1',
+                blur: document.getElementById('blur')?.value || '1',
+                opacity: document.getElementById('opacity')?.value || '0.8',
+                dateRange: document.getElementById('dateRange')?.value || '365'
+            };
+            
+            localStorage.setItem('heatmap_settings', JSON.stringify(settings));
+        } catch (error) {
+            console.warn('保存设置失败:', error);
+        }
+    }
+
+    /**
+     * 从本地存储加载用户设置
+     */
+    loadSettings() {
+        try {
+            const saved = localStorage.getItem('heatmap_settings');
+            if (!saved) return;
+            
+            const settings = JSON.parse(saved);
+            
+            // 验证并应用设置
+            if (settings.mapStyle && ['dark', 'light'].includes(settings.mapStyle)) {
+                const mapStyleEl = document.getElementById('mapStyle');
+                if (mapStyleEl) {
+                    mapStyleEl.value = settings.mapStyle;
+                    if (this.heatmapRenderer) {
+                        this.heatmapRenderer.setMapStyle(settings.mapStyle);
+                    }
+                }
+            }
+            
+            if (settings.mapLanguage && ['en', 'zh-vector', 'zh-satellite'].includes(settings.mapLanguage)) {
+                const mapLanguageEl = document.getElementById('mapLanguage');
+                if (mapLanguageEl) {
+                    // 检查中文地图是否需要API密钥
+                    if ((settings.mapLanguage === 'zh-vector' || settings.mapLanguage === 'zh-satellite') && 
+                        !MAP_CONFIG.hasApiKey()) {
+                        // 如果没有API密钥，使用英文地图
+                        mapLanguageEl.value = 'en';
+                    } else {
+                        mapLanguageEl.value = settings.mapLanguage;
+                        if (this.heatmapRenderer) {
+                            this.heatmapRenderer.setMapLanguage(settings.mapLanguage);
+                            this.updateApiUsagePanelVisibility(settings.mapLanguage);
+                        }
+                    }
+                }
+            }
+            
+            if (settings.radius) {
+                const radiusEl = document.getElementById('radius');
+                const radiusValueEl = document.getElementById('radiusValue');
+                if (radiusEl && radiusValueEl) {
+                    const radius = Math.max(1, Math.min(10, parseInt(settings.radius) || 1));
+                    radiusEl.value = radius;
+                    radiusValueEl.textContent = radius;
+                }
+            }
+            
+            if (settings.blur) {
+                const blurEl = document.getElementById('blur');
+                const blurValueEl = document.getElementById('blurValue');
+                if (blurEl && blurValueEl) {
+                    const blur = Math.max(1, Math.min(20, parseInt(settings.blur) || 1));
+                    blurEl.value = blur;
+                    blurValueEl.textContent = blur;
+                }
+            }
+            
+            if (settings.opacity) {
+                const opacityEl = document.getElementById('opacity');
+                const opacityValueEl = document.getElementById('opacityValue');
+                if (opacityEl && opacityValueEl) {
+                    const opacity = Math.max(0.1, Math.min(1.0, parseFloat(settings.opacity) || 0.8));
+                    opacityEl.value = opacity;
+                    opacityValueEl.textContent = opacity;
+                }
+            }
+            
+            if (settings.dateRange) {
+                const dateRangeEl = document.getElementById('dateRange');
+                if (dateRangeEl && ['30', '90', '180', '365', '0'].includes(settings.dateRange)) {
+                    dateRangeEl.value = settings.dateRange;
+                }
+            }
+        } catch (error) {
+            console.warn('加载设置失败:', error);
+        }
     }
 
     /**

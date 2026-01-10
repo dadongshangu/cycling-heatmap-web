@@ -65,10 +65,12 @@ GPX文件 → 文件读取 → XML解析 → 坐标提取 → 数据处理 → �
 ### 核心功能
 
 #### 1. 文件上传系统
-- **拖拽上传**: 支持拖拽GPX文件到指定区域
+- **拖拽上传**: 支持拖拽GPX文件到指定区域（带视觉反馈动画）
 - **批量上传**: 一次可上传多个GPX文件
-- **文件验证**: 检查文件格式和大小
-- **进度显示**: 实时显示处理进度
+- **文件验证**: 检查文件格式和大小（单个50MB，总计200MB限制）
+- **进度显示**: 实时显示处理进度和剩余时间估算
+- **移动端优化**: 自动检测设备类型，移动端移除文件类型限制
+- **文件可读性检查**: 移动端自动检查文件是否可读
 
 #### 2. GPX数据解析
 - **XML解析**: 解析GPX文件的XML结构
@@ -97,19 +99,27 @@ GPX文件 → 文件读取 → XML解析 → 坐标提取 → 数据处理 → �
 ### 辅助功能
 
 #### 1. 用户指导
-- **GPX获取指南**: 详细的设备和应用指南
+- **GPX获取指南**: 详细的设备和应用指南（支持搜索功能）
+- **移动端文件选择帮助**: iOS和Android设备文件选择指南
 - **使用帮助**: 功能说明和操作指导
 - **设备兼容性**: 各种GPS设备的支持说明
 
 #### 2. 导出功能
 - **图片导出**: 将热力图导出为PNG图片
 - **高清渲染**: 支持高分辨率导出
-- **水印添加**: 可选添加项目水印
+- **移动端优化**: 移动端导出失败时提供截屏指南
 
 #### 3. 个性化设置
-- **参数调节**: 线条粗细、模糊度、透明度
+- **参数调节**: 线条粗细、模糊度、透明度（高级参数默认折叠）
 - **时间过滤**: 按时间范围过滤数据
 - **地图样式**: 多种地图样式选择
+- **设置自动保存**: 自动保存用户设置到localStorage，下次打开自动恢复
+
+#### 4. 用户体验增强
+- **键盘快捷键**: Ctrl/Cmd+O打开文件，Ctrl/Cmd+G生成热力图，Esc关闭模态框
+- **拖拽视觉反馈**: 拖拽文件时显示脉冲动画和边框高亮
+- **进度显示**: 文件处理时显示详细进度和剩余时间估算
+- **错误处理**: 全局错误捕获和用户友好提示
 
 ---
 
@@ -619,21 +629,74 @@ document.getElementById('radius').addEventListener('input', debouncedUpdateHeatm
 
 #### 3. 内存管理
 ```javascript
-// 清理不需要的数据
-function cleanupResources() {
-    // 清理地图图层
-    if (currentHeatmapLayer) {
-        map.removeLayer(currentHeatmapLayer);
-        currentHeatmapLayer = null;
+// 清理不需要的数据（已在 main.js 中实现）
+clearAllFiles() {
+    // 清除数据
+    this.loadedTracks = [];
+    this.gpxParser.clear();
+    
+    // 清除热力图和释放内存
+    if (this.heatmapRenderer) {
+        this.heatmapRenderer.clearHeatmap();
+        if (this.heatmapRenderer.currentPoints) {
+            this.heatmapRenderer.currentPoints = [];
+        }
     }
     
-    // 清理大数组
-    processedData = null;
+    // 重置处理状态
+    this.isProcessing = false;
+    this.startTime = null;
     
-    // 强制垃圾回收（开发环境）
-    if (window.gc) {
-        window.gc();
+    // 重置UI和文件输入
+    // ...
+}
+```
+
+#### 4. 防抖优化
+```javascript
+// 参数调节防抖（已在 main.js 中实现）
+debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// 应用到滑块控件
+slider.addEventListener('input', (e) => {
+    // 立即更新显示值
+    valueDisplay.textContent = value;
+});
+
+const debouncedUpdate = this.debounce(() => {
+    // 防抖更新热力图（300ms延迟）
+    this.updateHeatmapParameters();
+}, 300);
+
+slider.addEventListener('change', debouncedUpdate);
+```
+
+#### 5. 文件大小验证
+```javascript
+// 文件大小验证（已在 main.js 中实现）
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 单个文件最大50MB
+const MAX_TOTAL_SIZE = 200 * 1024 * 1024; // 总大小最大200MB
+
+// 验证单个文件大小和总大小
+files.forEach(file => {
+    if (file.size > MAX_FILE_SIZE) {
+        // 跳过超大文件
     }
+});
+
+const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+if (totalSize > MAX_TOTAL_SIZE) {
+    // 提示用户分批上传
 }
 ```
 
