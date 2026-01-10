@@ -2,6 +2,57 @@
  * GPX Parser - 解析GPX文件并提取轨迹点
  */
 
+/**
+ * 类型检查工具类
+ * 提供常用的类型验证方法
+ */
+class TypeChecker {
+    /**
+     * 检查值是否为有效数字
+     * @param {*} value - 要检查的值
+     * @returns {boolean} 是否为有效数字
+     */
+    static isNumber(value) {
+        return typeof value === 'number' && !isNaN(value) && isFinite(value);
+    }
+    
+    /**
+     * 检查坐标是否有效
+     * @param {number} lat - 纬度
+     * @param {number} lon - 经度
+     * @returns {boolean} 坐标是否有效
+     */
+    static isValidCoordinate(lat, lon) {
+        return this.isNumber(lat) && this.isNumber(lon) &&
+               lat >= -90 && lat <= 90 &&
+               lon >= -180 && lon <= 180;
+    }
+    
+    /**
+     * 检查日期是否有效
+     * @param {Date|number} date - 日期对象或时间戳
+     * @returns {boolean} 日期是否有效
+     */
+    static isValidDate(date) {
+        if (date instanceof Date) {
+            return !isNaN(date.getTime());
+        }
+        if (typeof date === 'number') {
+            return date > 0 && date < Number.MAX_SAFE_INTEGER;
+        }
+        return false;
+    }
+    
+    /**
+     * 检查数组是否非空
+     * @param {Array} arr - 要检查的数组
+     * @returns {boolean} 数组是否非空
+     */
+    static isNonEmptyArray(arr) {
+        return Array.isArray(arr) && arr.length > 0;
+    }
+}
+
 class GPXParser {
     constructor() {
         this.tracks = [];
@@ -116,10 +167,9 @@ class GPXParser {
             const lat = parseFloat(point.getAttribute('lat'));
             const lon = parseFloat(point.getAttribute('lon'));
             
-            // 验证坐标有效性
-            if (isNaN(lat) || isNaN(lon) || 
-                lat < -90 || lat > 90 || 
-                lon < -180 || lon > 180) {
+            // 使用TypeChecker验证坐标有效性
+            if (!TypeChecker.isValidCoordinate(lat, lon)) {
+                console.warn(`Invalid coordinate: lat=${lat}, lon=${lon}`);
                 return; // 跳过无效坐标
             }
 
@@ -129,7 +179,7 @@ class GPXParser {
             if (timeElement && timeElement.textContent) {
                 try {
                     const dateObj = new Date(timeElement.textContent);
-                    if (!isNaN(dateObj.getTime())) {
+                    if (TypeChecker.isValidDate(dateObj)) {
                         timestamp = dateObj.getTime(); // 存储为时间戳数字
                         trackDates.push(timestamp);
                     }
@@ -142,8 +192,10 @@ class GPXParser {
             let elevation = null;
             const eleElement = point.querySelector('ele');
             if (eleElement && eleElement.textContent) {
-                elevation = parseFloat(eleElement.textContent);
-                if (isNaN(elevation)) elevation = null;
+                const eleValue = parseFloat(eleElement.textContent);
+                if (TypeChecker.isNumber(eleValue)) {
+                    elevation = eleValue;
+                }
             }
 
             points.push({

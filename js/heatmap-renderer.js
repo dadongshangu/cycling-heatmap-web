@@ -152,6 +152,43 @@ class HeatmapRenderer {
     }
 
     /**
+     * 创建瓦片图层（公共方法，统一处理错误和配置）
+     * @param {string} url - 瓦片图层URL
+     * @param {Object} options - 配置选项
+     * @param {string} options.attribution - 版权信息
+     * @param {string} options.subdomains - 子域名
+     * @param {number} options.maxZoom - 最大缩放级别
+     * @param {Function} options.onError - 错误回调函数
+     * @param {Function} options.onTileLoad - 瓦片加载回调函数
+     * @returns {L.TileLayer} 瓦片图层对象
+     */
+    createTileLayer(url, options = {}) {
+        const defaultOptions = {
+            attribution: options.attribution || '',
+            subdomains: options.subdomains || 'abcd',
+            maxZoom: options.maxZoom || 18
+        };
+        
+        const layer = L.tileLayer(url, { ...defaultOptions, ...options });
+        
+        // 统一错误处理
+        layer.on('tileerror', (e) => {
+            if (options.onError) {
+                options.onError(e);
+            } else {
+                console.warn('Tile loading error:', e);
+            }
+        });
+        
+        // 瓦片加载回调
+        if (options.onTileLoad) {
+            layer.on('tileload', options.onTileLoad);
+        }
+        
+        return layer;
+    }
+
+    /**
      * 创建天地图矢量图层
      */
     createTiandituVectorLayers() {
@@ -188,37 +225,21 @@ class HeatmapRenderer {
         }
 
         // 创建矢量底图层
-        const vectorLayer = L.tileLayer(vectorUrl, {
+        const vectorLayer = this.createTileLayer(vectorUrl, {
             attribution: '&copy; <a href="http://www.tianditu.gov.cn/">天地图</a>',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
-            maxZoom: 18
+            maxZoom: 18,
+            onError: (e) => console.warn('天地图矢量底图加载失败:', e),
+            onTileLoad: this.usageTracker ? () => this.usageTracker.trackVectorRequest() : null
         });
 
         // 创建中文标注层
-        const labelLayer = L.tileLayer(labelUrl, {
+        const labelLayer = this.createTileLayer(labelUrl, {
             attribution: '',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
-            maxZoom: 18
-        });
-
-        // 添加使用量跟踪
-        if (this.usageTracker) {
-            vectorLayer.on('tileload', () => {
-                this.usageTracker.trackVectorRequest();
-            });
-
-            labelLayer.on('tileload', () => {
-                this.usageTracker.trackLabelRequest();
-            });
-        }
-
-        // 添加错误处理
-        vectorLayer.on('tileerror', (e) => {
-            console.warn('天地图矢量底图加载失败:', e);
-        });
-
-        labelLayer.on('tileerror', (e) => {
-            console.warn('天地图标注层加载失败:', e);
+            maxZoom: 18,
+            onError: (e) => console.warn('天地图标注层加载失败:', e),
+            onTileLoad: this.usageTracker ? () => this.usageTracker.trackLabelRequest() : null
         });
 
         // 添加到地图
@@ -268,37 +289,21 @@ class HeatmapRenderer {
         }
 
         // 创建影像底图层
-        const imageLayer = L.tileLayer(imageUrl, {
+        const imageLayer = this.createTileLayer(imageUrl, {
             attribution: '&copy; <a href="http://www.tianditu.gov.cn/">天地图</a>',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
-            maxZoom: 18
+            maxZoom: 18,
+            onError: (e) => console.warn('天地图影像底图加载失败:', e),
+            onTileLoad: this.usageTracker ? () => this.usageTracker.trackImageRequest() : null
         });
 
         // 创建影像标注层
-        const imageLabelLayer = L.tileLayer(imageLabelUrl, {
+        const imageLabelLayer = this.createTileLayer(imageLabelUrl, {
             attribution: '',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
-            maxZoom: 18
-        });
-
-        // 添加使用量跟踪
-        if (this.usageTracker) {
-            imageLayer.on('tileload', () => {
-                this.usageTracker.trackImageRequest();
-            });
-
-            imageLabelLayer.on('tileload', () => {
-                this.usageTracker.trackLabelRequest();
-            });
-        }
-
-        // 添加错误处理
-        imageLayer.on('tileerror', (e) => {
-            console.warn('天地图影像底图加载失败:', e);
-        });
-
-        imageLabelLayer.on('tileerror', (e) => {
-            console.warn('天地图影像标注层加载失败:', e);
+            maxZoom: 18,
+            onError: (e) => console.warn('天地图影像标注层加载失败:', e),
+            onTileLoad: this.usageTracker ? () => this.usageTracker.trackLabelRequest() : null
         });
 
         // 添加到地图
@@ -317,25 +322,15 @@ class HeatmapRenderer {
     createEnglishLayers() {
         let tileLayer;
         
-        if (this.mapStyle === 'light') {
-            // CartoDB Positron
-            tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-                subdomains: 'abcd',
-                maxZoom: 20
-            });
-        } else {
-            // CartoDB Dark Matter
-            tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-                subdomains: 'abcd',
-                maxZoom: 20
-            });
-        }
-
-        // 添加错误处理
-        tileLayer.on('tileerror', (e) => {
-            console.warn('英文地图瓦片加载失败:', e);
+        const url = this.mapStyle === 'light'
+            ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+        
+        tileLayer = this.createTileLayer(url, {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20,
+            onError: (e) => console.warn('英文地图瓦片加载失败:', e)
         });
 
         tileLayer.addTo(this.map);
