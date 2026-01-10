@@ -108,6 +108,24 @@ class CyclingHeatmapApp {
     }
 
     /**
+     * 防抖函数
+     * @param {Function} func - 要防抖的函数
+     * @param {number} wait - 等待时间（毫秒）
+     * @returns {Function} 防抖后的函数
+     */
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    /**
      * 绑定参数控制事件
      */
     bindParameterControls() {
@@ -151,19 +169,26 @@ class CyclingHeatmapApp {
             }
         });
 
-        // 滑块控件
+        // 滑块控件 - 使用防抖优化性能
         const controls = ['radius', 'blur', 'opacity'];
         controls.forEach(control => {
             const slider = document.getElementById(control);
             const valueDisplay = document.getElementById(control + 'Value');
             
+            // 立即更新显示值（无延迟）
             slider.addEventListener('input', (e) => {
                 const value = parseFloat(e.target.value);
                 valueDisplay.textContent = value;
-                
-                // 实时更新热力图
-                this.updateHeatmapParameters();
             });
+            
+            // 防抖更新热力图（300ms延迟）
+            const debouncedUpdate = this.debounce(() => {
+                if (this.loadedTracks.length > 0 && this.heatmapRenderer) {
+                    this.updateHeatmapParameters();
+                }
+            }, 300);
+            
+            slider.addEventListener('change', debouncedUpdate);
         });
 
         // 日期范围
@@ -325,12 +350,41 @@ class CyclingHeatmapApp {
             return;
         }
 
+        // 文件大小验证（50MB限制）
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+        const validFiles = [];
+        const oversizedFiles = [];
+        
+        files.forEach(file => {
+            if (file.size > MAX_FILE_SIZE) {
+                oversizedFiles.push({
+                    name: file.name,
+                    size: (file.size / (1024 * 1024)).toFixed(2) + ' MB'
+                });
+            } else {
+                validFiles.push(file);
+            }
+        });
+        
+        if (oversizedFiles.length > 0) {
+            const fileList = oversizedFiles.map(f => `${f.name} (${f.size})`).join(', ');
+            this.showMessage(
+                `${oversizedFiles.length} 个文件超过大小限制（50MB）：${fileList}。已跳过这些文件。`,
+                'warning'
+            );
+        }
+        
+        if (validFiles.length === 0) {
+            this.showMessage('没有有效的文件可以处理', 'error');
+            return;
+        }
+
         this.isProcessing = true;
         this.showLoading(true);
         
         try {
             // 解析文件
-            const results = await this.gpxParser.parseFiles(files, this.updateProgress.bind(this));
+            const results = await this.gpxParser.parseFiles(validFiles, this.updateProgress.bind(this));
             
             // 过滤成功解析的文件
             const successfulTracks = results.filter(result => !result.error);
