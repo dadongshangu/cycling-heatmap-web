@@ -9,6 +9,10 @@
 ### 运行所有测试
 
 ```bash
+# 运行完整测试套件（包括单元测试和回归测试）
+node scripts/test/test-all.js
+
+# 或运行原有的测试（向后兼容）
 node scripts/test-all.js
 ```
 
@@ -23,6 +27,14 @@ node scripts/check-files.js
 
 # 代码质量检查
 node scripts/check-quality.js
+
+# 单元测试
+node scripts/test/unit/test-geo-utils.js
+node scripts/test/unit/test-gpx-parser.js
+
+# 回归测试
+node scripts/test/regression/test-export-regression.js
+node scripts/test/regression/test-fit-regression.js
 ```
 
 ## 📝 测试内容
@@ -88,17 +100,94 @@ node scripts/check-quality.js
 - ✅ 代码质量检查通过
 - ⚠️ 有警告但可以继续（不影响提交）
 
-## 🔧 Git Pre-commit Hook
+### 4. 单元测试 (`scripts/test/unit/`)
 
-### 自动运行测试
+**测试内容：**
+- **GeoUtils测试** (`test-geo-utils.js`) - 测试地理计算工具函数
+  - `toRadians` 函数测试
+  - `haversineDistance` 函数测试
+  - 距离计算准确性验证
+- **GPX解析器测试** (`test-gpx-parser.js`) - 测试GPX文件解析
+  - 文件解析功能
+  - 轨迹点提取
+  - 坐标验证
+  - 距离计算
 
-项目已配置 Git pre-commit hook，每次提交前会自动运行所有测试。
+**运行方式：**
+```bash
+node scripts/test/unit/test-geo-utils.js
+node scripts/test/unit/test-gpx-parser.js
+```
+
+### 5. 回归测试 (`scripts/test/regression/`)
+
+**测试内容：**
+- **导出功能回归测试** (`test-export-regression.js`) - 确保导出功能不会再次出现问题
+  - 检查 `exportMapAsImage` 直接使用 `html2canvas`（不调用 `loadHtml2Canvas`）
+  - 验证移动端配置正确（`imageTimeout = 12000`，无 `ignoreElements`）
+  - 验证PC端配置简化（只有基本配置）
+  - 验证移动端导出流程（Web Share失败后直接显示模态框）
+- **FIT解析回归测试** (`test-fit-regression.js`) - 确保FIT坐标转换不会再次出现问题
+  - 检查 `semicirclesToDegrees` 函数存在
+  - 验证坐标转换公式正确
+  - 验证坐标格式检测逻辑存在
+  - 验证离群点过滤逻辑存在
+
+**运行方式：**
+```bash
+node scripts/test/regression/test-export-regression.js
+node scripts/test/regression/test-fit-regression.js
+```
+
+**重要性：**
+这些回归测试确保之前修复的问题不会再次出现，是防止功能退化的关键测试。
+
+## 🔧 Git Hooks
+
+### Pre-commit Hook（快速测试）
+
+项目已配置 Git pre-commit hook，每次提交前会自动运行快速测试。
 
 **工作原理：**
 1. 执行 `git commit` 时自动触发
-2. 运行 `scripts/test-all.js`
+2. 运行快速测试套件（语法检查、文件完整性、单元测试、回归测试）
 3. 如果测试失败，阻止提交
 4. 如果测试通过，允许提交
+
+**测试内容：**
+- 语法检查
+- 文件完整性检查
+- GeoUtils单元测试
+- 导出功能回归测试
+- FIT解析回归测试
+
+**设置Hook（Windows）：**
+```bash
+# 复制pre-commit hook
+copy scripts\pre-commit-fast-test.bat .git\hooks\pre-commit
+```
+
+**设置Hook（Linux/Mac）：**
+```bash
+# 复制pre-commit hook
+cp scripts/pre-commit-fast-test.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+### Pre-push Hook（完整测试）
+
+可选配置 pre-push hook，在推送前运行完整测试套件。
+
+**设置Hook（Windows）：**
+```bash
+copy scripts\pre-push-full-test.bat .git\hooks\pre-push
+```
+
+**设置Hook（Linux/Mac）：**
+```bash
+cp scripts/pre-push-full-test.sh .git/hooks/pre-push
+chmod +x .git/hooks/pre-push
+```
 
 ### 手动运行（测试Hook）
 
@@ -210,12 +299,19 @@ git commit --allow-empty -m "Test commit"
 
 ## 🔄 持续改进
 
+### 已完成
+
+- [x] 添加单元测试（GeoUtils、GPX解析器）
+- [x] 添加回归测试（导出功能、FIT解析）
+- [x] 创建测试框架和测试运行器
+- [x] 集成到Git Hook
+
 ### 未来计划
 
-- [ ] 集成 ESLint 进行更严格的代码质量检查
-- [ ] 添加单元测试
 - [ ] 添加浏览器自动化测试（Puppeteer/Playwright）
-- [ ] 集成到 CI/CD 流程
+- [ ] 添加集成测试（端到端流程测试）
+- [ ] 集成到 CI/CD 流程（GitHub Actions）
+- [ ] 添加测试覆盖率统计
 
 ## 📞 支持
 
@@ -225,4 +321,60 @@ git commit --allow-empty -m "Test commit"
 
 ---
 
-*最后更新：2026年1月*
+## 📋 测试框架说明
+
+### 测试运行器 (`scripts/test/utils/test-runner.js`)
+
+自定义的轻量级测试框架，提供：
+- `test(name, fn)` - 注册测试用例
+- `assert(condition, message)` - 基本断言
+- `assertEqual(actual, expected, message)` - 相等断言
+- `assertAlmostEqual(actual, expected, tolerance, message)` - 近似相等断言（用于浮点数）
+- `assertInRange(value, min, max, message)` - 范围断言
+- `assertNotEmpty(value, message)` - 非空断言
+
+### 测试文件结构
+
+```
+scripts/test/
+  unit/              # 单元测试
+    test-geo-utils.js
+    test-gpx-parser.js
+  regression/        # 回归测试
+    test-export-regression.js
+    test-fit-regression.js
+  fixtures/          # 测试数据
+    sample.gpx
+  utils/             # 测试工具
+    test-runner.js
+  test-all.js        # 运行所有测试
+```
+
+### 编写新测试
+
+1. 在相应的测试目录创建测试文件
+2. 引入测试运行器：`const TestRunner = require('../utils/test-runner')`
+3. 创建测试实例：`const runner = new TestRunner()`
+4. 编写测试用例：`runner.test('测试名称', () => { ... })`
+5. 运行测试：`runner.run()`
+
+**示例：**
+```javascript
+const TestRunner = require('../utils/test-runner');
+const runner = new TestRunner();
+
+runner.test('我的测试', () => {
+    const result = myFunction();
+    runner.assertEqual(result, expected, '结果应该等于期望值');
+});
+
+if (require.main === module) {
+    runner.run().then(success => {
+        process.exit(success ? 0 : 1);
+    });
+}
+```
+
+---
+
+*最后更新：2026年1月（添加单元测试和回归测试）*

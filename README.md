@@ -72,7 +72,15 @@ cycling-heatmap-web/
 │   ├── check-syntax.js    # 语法检查脚本
 │   ├── check-files.js     # 文件完整性检查
 │   ├── check-quality.js   # 代码质量检查
-│   ├── test-all.js        # 综合测试脚本
+│   ├── test-all.js        # 综合测试脚本（旧版，向后兼容）
+│   ├── test/              # 测试系统目录
+│   │   ├── unit/          # 单元测试
+│   │   ├── regression/    # 回归测试
+│   │   ├── fixtures/      # 测试数据
+│   │   └── test-all.js    # 运行所有测试
+│   ├── pre-commit-fast-test.bat  # Pre-commit hook（Windows）
+│   ├── pre-push-full-test.bat    # Pre-push hook（Windows）
+│   └── setup-git-hooks.bat       # Git hooks设置脚本
 │   └── README.md          # 脚本使用说明
 ├── doc/
 │   ├── TESTING_GUIDE.md   # 测试指南

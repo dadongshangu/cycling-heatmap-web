@@ -36,6 +36,7 @@ test-*
 *TEST*.html
 # 允许测试脚本和文档
 !scripts/test-all.js
+!scripts/test/
 !doc/TESTING_GUIDE.md
 
 # 转换工具和临时文件
@@ -48,3 +49,7 @@ requirements.txt
 *CLEANUP*.md
 *SUMMARY*.md
 *清理*.md
+
+# Node.js依赖
+node_modules/
+package-lock.json
