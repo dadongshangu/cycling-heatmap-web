@@ -546,9 +546,18 @@ class HeatmapRenderer {
             try {
                 const mapContainer = this.map.getContainer();
                 
-                // 移动端使用更高的scale以提高质量，但不要太高以免内存问题
+                // 移动端使用scale=1以避免内存问题，提高成功率
                 const isMobile = this.isMobileDevice();
-                const scale = isMobile ? 2 : 1;
+                const scale = isMobile ? 1 : 1;
+                
+                // 添加超时机制（移动端30秒，桌面端15秒）
+                const timeout = isMobile ? 30000 : 15000;
+                let timeoutId = null;
+                
+                // 设置超时
+                timeoutId = setTimeout(() => {
+                    reject(new Error('EXPORT_TIMEOUT'));
+                }, timeout);
                 
                 // 使用html2canvas截图
                 html2canvas(mapContainer, {
@@ -564,7 +573,8 @@ class HeatmapRenderer {
                         scrollX: 0,
                         scrollY: 0,
                         windowWidth: mapContainer.offsetWidth,
-                        windowHeight: mapContainer.offsetHeight
+                        windowHeight: mapContainer.offsetHeight,
+                        imageTimeout: 10000
                     } : {}),
                     onclone: (clonedDoc) => {
                         // 确保克隆的文档中的样式正确
@@ -575,14 +585,18 @@ class HeatmapRenderer {
                         }
                     }
                 }).then(canvas => {
+                    // 清除超时
+                    if (timeoutId) clearTimeout(timeoutId);
                     // 转换为base64
                     const dataURL = canvas.toDataURL('image/png', 1.0);
                     resolve(dataURL);
                 }).catch(error => {
+                    // 清除超时
+                    if (timeoutId) clearTimeout(timeoutId);
                     console.error('导出地图失败:', error);
-                    // 如果是移动端，提供更友好的错误提示
+                    // 如果是移动端，返回特殊错误标识
                     if (isMobile) {
-                        reject(new Error('移动端导出可能受限，请尝试在桌面浏览器中使用，或长按地图区域截图保存'));
+                        reject(new Error('EXPORT_FAILED_MOBILE'));
                     } else {
                         reject(error);
                     }

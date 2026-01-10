@@ -656,6 +656,25 @@ body {
     .map-container {
         border-radius: 0 0 15px 15px;
     }
+    
+    /* 移动端按钮样式调整 - 突出主按钮 */
+    .upload-btn {
+        padding: 14px 28px;
+        font-size: 1rem;
+        font-weight: 700;
+    }
+    
+    .help-btn {
+        padding: 7px 14px;
+        font-size: 0.8rem;
+        font-weight: 400;
+        opacity: 0.85;
+    }
+    
+    /* 移动端隐藏全屏按钮（移动浏览器不支持元素级全屏API） */
+    #fullscreenBtn {
+        display: none;
+    }
 }
 
 @media (max-width: 480px) {
@@ -665,6 +684,23 @@ body {
     
     .subtitle {
         font-size: 1rem;
+    }
+    
+    /* 移动端按钮样式调整 - 突出主按钮，缩小辅助按钮 */
+    .upload-btn {
+        padding: 16px 32px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        width: 100%;
+        margin-bottom: 10px;
+    }
+    
+    .help-btn {
+        padding: 6px 12px;
+        font-size: 0.75rem;
+        font-weight: 400;
+        width: 100%;
+        opacity: 0.8;
     }
     
     .upload-area {
@@ -1117,6 +1153,57 @@ body {
     margin: 8px 0;
     font-size: 0.95rem;
     line-height: 1.5;
+}
+
+/* 截屏指南模态框样式 */
+.screenshot-guide-content {
+    padding: 10px 0;
+}
+
+.device-guide-section {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border: 1px solid #e9ecef;
+}
+
+.device-guide-section h3 {
+    color: #495057;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.device-guide-section ol {
+    margin: 0;
+    padding-left: 20px;
+    color: #6c757d;
+}
+
+.device-guide-section li {
+    margin-bottom: 8px;
+    line-height: 1.6;
+}
+
+.device-guide-section strong {
+    color: #495057;
+    font-weight: 600;
+}
+
+/* 响应式设计 - 截屏指南 */
+@media (max-width: 768px) {
+    .device-guide-section {
+        padding: 15px;
+    }
+    
+    .device-guide-section h3 {
+        font-size: 1rem;
+    }
 }
 
 /* 响应式设计 - 捐赠模态框 */

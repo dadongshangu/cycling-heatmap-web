@@ -80,6 +80,9 @@ class CyclingHeatmapApp {
         
         exportBtn.addEventListener('click', this.exportMap.bind(this));
         fullscreenBtn.addEventListener('click', this.enterFullscreen.bind(this));
+        
+        // 检测全屏API支持，如果不支持则隐藏全屏按钮
+        this.checkFullscreenSupport(fullscreenBtn);
     }
 
     /**
@@ -382,6 +385,22 @@ class CyclingHeatmapApp {
             
             this.showMessage(`热力图生成成功！显示 ${finalPoints.length.toLocaleString()} 个轨迹点`, 'success');
             
+            // 移动端自动滚动到地图
+            const isMobile = this.heatmapRenderer.isMobileDevice();
+            if (isMobile) {
+                // 等待一小段时间确保地图渲染完成
+                setTimeout(() => {
+                    const mapContainer = document.querySelector('.map-container') || document.getElementById('map');
+                    if (mapContainer) {
+                        mapContainer.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'start',
+                            inline: 'nearest'
+                        });
+                    }
+                }, 300);
+            }
+            
         } catch (error) {
             console.error('生成热力图时出错:', error);
             this.showMessage('生成热力图时出错: ' + error.message, 'error');
@@ -472,15 +491,22 @@ class CyclingHeatmapApp {
             const isMobile = this.heatmapRenderer.isMobileDevice();
             
             // 显示导出进度
-            const loadingText = isMobile ? '正在导出热力图（移动端可能需要更长时间）...' : '正在导出热力图...';
+            const loadingText = isMobile ? '正在导出热力图（移动端可能需要更长时间，请耐心等待）...' : '正在导出热力图...';
             this.showLoading(true, loadingText);
             
             // 移动端需要更长的等待时间确保地图完全渲染
-            const waitTime = isMobile ? 1000 : 500;
+            const waitTime = isMobile ? 1500 : 500;
             await new Promise(resolve => setTimeout(resolve, waitTime));
             
+            // 添加总超时保护（移动端35秒，桌面端20秒）
+            const totalTimeout = isMobile ? 35000 : 20000;
+            const exportPromise = this.heatmapRenderer.exportAndDownload();
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
+            });
+            
             // 导出并下载图片
-            await this.heatmapRenderer.exportAndDownload();
+            await Promise.race([exportPromise, timeoutPromise]);
             
             // 移动端提示
             if (isMobile) {
@@ -491,10 +517,61 @@ class CyclingHeatmapApp {
             
         } catch (error) {
             console.error('导出地图时出错:', error);
-            const errorMsg = error.message || '导出失败，请重试';
-            this.showMessage('导出地图时出错: ' + errorMsg, 'error');
+            const isMobile = this.heatmapRenderer.isMobileDevice();
+            const errorMsg = error.message || '';
+            
+            // 移动端失败时显示截屏指南
+            if (isMobile && (errorMsg === 'EXPORT_TIMEOUT' || errorMsg === 'EXPORT_FAILED_MOBILE' || errorMsg.includes('超时') || errorMsg.includes('失败'))) {
+                this.showScreenshotGuide();
+            } else {
+                // 桌面端或其他错误，显示错误信息
+                const displayMsg = errorMsg === 'EXPORT_TIMEOUT' ? '导出超时，请稍后重试' : (errorMsg || '导出失败，请重试');
+                this.showMessage('导出地图时出错: ' + displayMsg, 'error');
+            }
         } finally {
             this.showLoading(false);
+        }
+    }
+
+    /**
+     * 显示截屏指南
+     */
+    showScreenshotGuide() {
+        const modal = document.getElementById('screenshotGuideModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    /**
+     * 关闭截屏指南
+     */
+    closeScreenshotGuide() {
+        const modal = document.getElementById('screenshotGuideModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 检测全屏API支持
+     * @param {HTMLElement} fullscreenBtn - 全屏按钮元素
+     */
+    checkFullscreenSupport(fullscreenBtn) {
+        if (!fullscreenBtn) return;
+        
+        // 检测是否支持全屏API
+        const element = document.documentElement;
+        const hasFullscreenSupport = !!(
+            element.requestFullscreen ||
+            element.webkitRequestFullscreen ||
+            element.mozRequestFullScreen ||
+            element.msRequestFullscreen
+        );
+        
+        // 如果不支持全屏API，隐藏按钮
+        if (!hasFullscreenSupport) {
+            fullscreenBtn.style.display = 'none';
         }
     }
 

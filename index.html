@@ -679,6 +679,58 @@
         </div>
     </div>
 
+    <!-- Screenshot Guide Modal -->
+    <div class="modal" id="screenshotGuideModal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="window.app.closeScreenshotGuide()">&times;</span>
+            <h2>📸 使用截屏保存热力图</h2>
+            <div class="screenshot-guide-content">
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+                    <p style="margin: 0; color: #856404; font-weight: 500;">
+                        ⚠️ 移动端导出功能可能受限，建议使用截屏方式保存热力图
+                    </p>
+                </div>
+
+                <div class="device-guide-section">
+                    <h3>🍎 iOS设备（iPhone/iPad）</h3>
+                    <ol style="line-height: 1.8;">
+                        <li>确保热力图完整显示在屏幕上</li>
+                        <li>同时按下<strong>电源键 + 音量上键</strong>（iPhone X及以后）</li>
+                        <li>或同时按下<strong>电源键 + Home键</strong>（iPhone 8及以前）</li>
+                        <li>截图会自动保存到相册</li>
+                        <li>可以在相册中查看和分享</li>
+                    </ol>
+                </div>
+
+                <div class="device-guide-section">
+                    <h3>🤖 Android设备</h3>
+                    <ol style="line-height: 1.8;">
+                        <li>确保热力图完整显示在屏幕上</li>
+                        <li>同时按下<strong>电源键 + 音量下键</strong></li>
+                        <li>或从屏幕顶部下拉，点击<strong>截屏</strong>按钮</li>
+                        <li>截图会自动保存到相册/图库</li>
+                        <li>可以在图库中查看和分享</li>
+                    </ol>
+                </div>
+
+                <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                    <p style="margin: 0; color: #004085; line-height: 1.6;">
+                        <strong>💡 提示：</strong><br>
+                        • 截屏前可以点击"全屏"按钮，获得更好的显示效果<br>
+                        • 截屏后可以在相册/图库中编辑和裁剪<br>
+                        • 如果需要更高质量的图片，建议在桌面浏览器中使用导出功能
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="upload-btn" onclick="window.app.closeScreenshotGuide()" style="flex: 1;">
+                        我知道了
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
