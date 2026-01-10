@@ -34,7 +34,7 @@
                             <div class="upload-icon">📁</div>
                             <p class="upload-text">拖拽轨迹记录GPX到这里</p>
                             <p class="upload-subtext">或点击选择文件</p>
-                            <input type="file" id="fileInput" multiple accept=".gpx,.GPX,application/gpx+xml,application/xml,text/xml" style="display: none;">
+                            <input type="file" id="fileInput" multiple accept=".gpx,.GPX" style="display: none;">
                             <button class="upload-btn" id="selectFileBtn">
                                 选择文件
                             </button>
@@ -674,6 +674,95 @@
                             📝 生成输入式书签
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mobile File Selection Help Modal -->
+    <div class="modal" id="mobileFileHelpModal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="window.app.closeMobileFileHelp()">&times;</span>
+            <h2>📱 移动端文件选择帮助</h2>
+            <div class="screenshot-guide-content">
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107; margin-bottom: 20px;">
+                    <p style="margin: 0; color: #856404; font-weight: 500;">
+                        ⚠️ 如果文件显示为灰色无法选择，请按照以下步骤操作
+                    </p>
+                </div>
+
+                <div class="device-guide-section">
+                    <h3>🍎 iOS设备（iPhone/iPad）</h3>
+                    <ol style="line-height: 1.8;">
+                        <li><strong>方法1 - 使用"文件"App：</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>打开"文件"App</li>
+                                <li>找到你的GPX文件（在"下载项"或"iCloud云盘"中）</li>
+                                <li>长按文件，选择"共享"</li>
+                                <li>选择"Safari"或"浏览器"打开</li>
+                                <li>在浏览器中打开后，再使用本工具选择文件</li>
+                            </ul>
+                        </li>
+                        <li><strong>方法2 - 先下载到本地：</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>如果文件在云存储中，先下载到"文件"App的本地存储</li>
+                                <li>在"文件"App中，长按文件 → "移动" → 选择"我的iPhone"或"下载项"</li>
+                                <li>确保文件已完全下载（不是云存储图标）</li>
+                                <li>然后再尝试选择文件</li>
+                            </ul>
+                        </li>
+                        <li><strong>方法3 - 使用其他App：</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>如果文件在邮件或消息中，先保存到"文件"App</li>
+                                <li>或者使用支持文件分享的App（如"文件"、"文件管理器"等）</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+
+                <div class="device-guide-section">
+                    <h3>🤖 Android设备</h3>
+                    <ol style="line-height: 1.8;">
+                        <li><strong>方法1 - 使用文件管理器：</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>打开"文件"或"文件管理器"App</li>
+                                <li>找到你的GPX文件（通常在"下载"文件夹中）</li>
+                                <li>长按文件，选择"打开方式"</li>
+                                <li>选择浏览器（Chrome、Edge等）</li>
+                                <li>在浏览器中打开后，再使用本工具选择文件</li>
+                            </ul>
+                        </li>
+                        <li><strong>方法2 - 确保文件已下载：</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>如果文件在云存储中，先确保已完全下载到本地</li>
+                                <li>在文件管理器中，找到文件并确认可以正常打开</li>
+                                <li>然后再尝试选择文件</li>
+                            </ul>
+                        </li>
+                        <li><strong>方法3 - 检查存储权限：</strong>
+                            <ul style="margin-top: 8px; padding-left: 20px;">
+                                <li>在系统设置中，确保浏览器有文件访问权限</li>
+                                <li>设置 → 应用 → 浏览器 → 权限 → 存储（允许）</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </div>
+
+                <div style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin-top: 20px;">
+                    <p style="margin: 0; color: #004085; line-height: 1.6;">
+                        <strong>💡 通用提示：</strong><br>
+                        • 确保GPX文件已完全下载到本地，不是云存储中的占位符<br>
+                        • 如果文件在云存储中，先下载到本地再选择<br>
+                        • 尝试使用不同的文件管理器或浏览器<br>
+                        • 确保文件扩展名是 .gpx（不是 .gpx.txt 或其他）<br>
+                        • 如果问题持续，可以尝试将文件通过邮件发送给自己，然后从邮件中保存
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="upload-btn" onclick="window.app.closeMobileFileHelp()" style="flex: 1;">
+                        我知道了
+                    </button>
                 </div>
             </div>
         </div>

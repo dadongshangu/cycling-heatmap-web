@@ -22,6 +22,9 @@ class CyclingHeatmapApp {
         // 初始化热力图渲染器
         this.heatmapRenderer = new HeatmapRenderer('map');
         
+        // 根据设备类型配置文件输入
+        this.configureFileInput();
+        
         // 绑定事件监听器
         this.bindEventListeners();
         
@@ -29,6 +32,25 @@ class CyclingHeatmapApp {
         this.updateUI();
         
         console.log('🚴 Cycling Heatmap Generator 已启动');
+    }
+
+    /**
+     * 配置文件输入 - PC端保留GPX筛选，移动端移除限制
+     */
+    configureFileInput() {
+        const fileInput = document.getElementById('fileInput');
+        if (!fileInput) return;
+        
+        // 检测是否为移动设备
+        const isMobile = this.isMobileDevice();
+        
+        if (isMobile) {
+            // 移动端：移除 accept 限制，避免文件显示为灰色
+            fileInput.removeAttribute('accept');
+        } else {
+            // PC端：保留 GPX 文件筛选，方便用户选择
+            fileInput.setAttribute('accept', '.gpx,.GPX');
+        }
     }
 
     /**
@@ -191,18 +213,106 @@ class CyclingHeatmapApp {
     }
 
     /**
+     * 检查文件是否可读
+     */
+    async checkFileReadability(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            let isResolved = false;
+            
+            // 设置超时，避免长时间等待
+            const timeout = setTimeout(() => {
+                if (!isResolved) {
+                    isResolved = true;
+                    resolve({ readable: false, error: '文件读取超时' });
+                }
+            }, 5000);
+            
+            reader.onload = () => {
+                if (!isResolved) {
+                    isResolved = true;
+                    clearTimeout(timeout);
+                    resolve({ readable: true });
+                }
+            };
+            
+            reader.onerror = () => {
+                if (!isResolved) {
+                    isResolved = true;
+                    clearTimeout(timeout);
+                    resolve({ readable: false, error: '文件无法读取，可能是权限问题' });
+                }
+            };
+            
+            // 尝试读取文件（只读取一小部分来检测）
+            reader.readAsArrayBuffer(file.slice(0, 1024));
+        });
+    }
+
+    /**
+     * 检查是否为移动设备
+     */
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+    }
+
+    /**
      * 处理文件选择
      */
-    handleFileSelect(e) {
-        const files = Array.from(e.target.files).filter(file => 
+    async handleFileSelect(e) {
+        const allFiles = Array.from(e.target.files);
+        
+        if (allFiles.length === 0) {
+            return;
+        }
+        
+        // 在 JavaScript 中验证文件类型（替代 accept 属性）
+        const gpxFiles = allFiles.filter(file => 
             file.name.toLowerCase().endsWith('.gpx')
         );
         
-        if (files.length > 0) {
-            this.processFiles(files);
-        } else if (e.target.files.length > 0) {
-            // 如果选择了文件但不是GPX格式，给出提示
+        // 如果有非 GPX 文件，给出提示
+        if (gpxFiles.length === 0 && allFiles.length > 0) {
             this.showMessage('请选择轨迹记录GPX文件（.gpx格式）', 'warning');
+            return;
+        }
+        
+        // 检查文件可读性（特别是移动端）
+        const isMobile = this.isMobileDevice();
+        if (isMobile && gpxFiles.length > 0) {
+            this.showMessage('正在检查文件...', 'info');
+            
+            const readabilityResults = await Promise.all(
+                gpxFiles.map(file => this.checkFileReadability(file))
+            );
+            
+            const readableFiles = [];
+            const unreadableFiles = [];
+            
+            gpxFiles.forEach((file, index) => {
+                if (readabilityResults[index].readable) {
+                    readableFiles.push(file);
+                } else {
+                    unreadableFiles.push({ file, error: readabilityResults[index].error });
+                }
+            });
+            
+            if (unreadableFiles.length > 0) {
+                // 显示移动端帮助
+                this.showMobileFileHelp();
+                this.showMessage(
+                    `${unreadableFiles.length} 个文件无法读取。请查看帮助提示。`,
+                    'error'
+                );
+            }
+            
+            if (readableFiles.length > 0) {
+                this.processFiles(readableFiles);
+            }
+        } else {
+            // 桌面端直接处理
+            this.processFiles(gpxFiles);
         }
     }
 
@@ -226,6 +336,24 @@ class CyclingHeatmapApp {
             const successfulTracks = results.filter(result => !result.error);
             const failedTracks = results.filter(result => result.error);
             
+            // 分析失败原因
+            const permissionErrors = [];
+            const formatErrors = [];
+            const otherErrors = [];
+            
+            failedTracks.forEach(track => {
+                const errorMsg = track.error?.toLowerCase() || '';
+                if (errorMsg.includes('permission') || errorMsg.includes('权限') || 
+                    errorMsg.includes('无法读取') || errorMsg.includes('read')) {
+                    permissionErrors.push(track);
+                } else if (errorMsg.includes('format') || errorMsg.includes('格式') || 
+                          errorMsg.includes('invalid') || errorMsg.includes('parse')) {
+                    formatErrors.push(track);
+                } else {
+                    otherErrors.push(track);
+                }
+            });
+            
             if (successfulTracks.length > 0) {
                 this.loadedTracks = this.loadedTracks.concat(successfulTracks);
                 this.updateFileList();
@@ -237,16 +365,41 @@ class CyclingHeatmapApp {
                     'success'
                 );
             } else {
-                this.showMessage('没有成功解析的文件', 'error');
+                // 所有文件都失败了
+                const isMobile = this.isMobileDevice();
+                if (permissionErrors.length > 0 && isMobile) {
+                    // 移动端权限错误，显示帮助
+                    this.showMobileFileHelp();
+                    this.showMessage('文件无法读取，可能是权限问题。请查看帮助提示。', 'error');
+                } else if (formatErrors.length > 0) {
+                    this.showMessage('文件格式错误，请确保选择的是有效的GPX文件', 'error');
+                } else {
+                    this.showMessage('没有成功解析的文件', 'error');
+                }
             }
             
             if (failedTracks.length > 0) {
                 console.warn('解析失败的文件:', failedTracks);
+                
+                // 如果是移动端且有权限错误，记录日志
+                const isMobile = this.isMobileDevice();
+                if (permissionErrors.length > 0 && isMobile) {
+                    console.warn('移动端文件权限错误:', permissionErrors);
+                }
             }
             
         } catch (error) {
             console.error('处理文件时出错:', error);
-            this.showMessage('处理文件时出错: ' + error.message, 'error');
+            const errorMsg = error.message?.toLowerCase() || '';
+            const isMobile = this.isMobileDevice();
+            
+            if ((errorMsg.includes('permission') || errorMsg.includes('权限') || 
+                 errorMsg.includes('无法读取')) && isMobile) {
+                this.showMobileFileHelp();
+                this.showMessage('文件读取失败，可能是权限问题。请查看帮助提示。', 'error');
+            } else {
+                this.showMessage('处理文件时出错: ' + error.message, 'error');
+            }
         } finally {
             this.isProcessing = false;
             this.showLoading(false);
@@ -548,6 +701,26 @@ class CyclingHeatmapApp {
      */
     closeScreenshotGuide() {
         const modal = document.getElementById('screenshotGuideModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 显示移动端文件选择帮助
+     */
+    showMobileFileHelp() {
+        const modal = document.getElementById('mobileFileHelpModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+    }
+
+    /**
+     * 关闭移动端文件选择帮助
+     */
+    closeMobileFileHelp() {
+        const modal = document.getElementById('mobileFileHelpModal');
         if (modal) {
             modal.style.display = 'none';
         }
