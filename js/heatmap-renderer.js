@@ -931,7 +931,6 @@ class HeatmapRenderer {
             throw error;
         }
     }
-    }
 
     /**
      * 进入全屏模式

@@ -128,6 +128,12 @@ class CyclingHeatmapApp {
         const selectFileBtn = document.getElementById('selectFileBtn');
         const clearFilesBtn = document.getElementById('clearFiles');
 
+        // 检查必需元素是否存在
+        if (!uploadArea || !fileInput) {
+            console.error('必需的上传元素未找到');
+            return;
+        }
+
         // 拖拽上传
         uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
         uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
@@ -143,30 +149,39 @@ class CyclingHeatmapApp {
         });
 
         // 选择文件按钮
-        selectFileBtn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止事件冒泡
-            fileInput.click();
-        });
+        if (selectFileBtn) {
+            selectFileBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 阻止事件冒泡
+                fileInput.click();
+            });
+        }
 
         // 文件选择
         fileInput.addEventListener('change', this.handleFileSelect.bind(this));
 
         // 清除文件
-        clearFilesBtn.addEventListener('click', this.clearAllFiles.bind(this));
+        if (clearFilesBtn) {
+            clearFilesBtn.addEventListener('click', this.clearAllFiles.bind(this));
+        }
 
         // 参数控制
         this.bindParameterControls();
 
         // 生成按钮
         const generateBtn = document.getElementById('generateBtn');
-        generateBtn.addEventListener('click', this.generateHeatmap.bind(this));
+        if (generateBtn) {
+            generateBtn.addEventListener('click', this.generateHeatmap.bind(this));
+        }
 
         // 地图控制按钮
         const exportBtn = document.getElementById('exportBtn');
         const fullscreenBtn = document.getElementById('fullscreenBtn');
-        
-        exportBtn.addEventListener('click', this.exportMap.bind(this));
-        fullscreenBtn.addEventListener('click', this.enterFullscreen.bind(this));
+        if (exportBtn) {
+            exportBtn.addEventListener('click', this.exportMap.bind(this));
+        }
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', this.enterFullscreen.bind(this));
+        }
         
         // 检测全屏API支持，如果不支持则隐藏全屏按钮
         this.checkFullscreenSupport(fullscreenBtn);
@@ -234,6 +249,10 @@ class CyclingHeatmapApp {
     bindParameterControls() {
         // 地图样式
         const mapStyleSelect = document.getElementById('mapStyle');
+        if (!mapStyleSelect) {
+            console.error('mapStyle元素未找到');
+            return;
+        }
         mapStyleSelect.addEventListener('change', (e) => {
             this.heatmapRenderer.setMapStyle(e.target.value);
             this.saveSettings(); // 保存设置
@@ -241,6 +260,10 @@ class CyclingHeatmapApp {
 
         // 地图语言
         const mapLanguageSelect = document.getElementById('mapLanguage');
+        if (!mapLanguageSelect) {
+            console.error('mapLanguage元素未找到');
+            return;
+        }
         mapLanguageSelect.addEventListener('change', (e) => {
             let selectedLanguage = e.target.value;
             
@@ -281,6 +304,11 @@ class CyclingHeatmapApp {
             const slider = document.getElementById(control);
             const valueDisplay = document.getElementById(control + 'Value');
             
+            if (!slider || !valueDisplay) {
+                console.warn(`参数控件 ${control} 未找到`);
+                return;
+            }
+            
             // 立即更新显示值（无延迟）
             slider.addEventListener('input', (e) => {
                 const value = parseFloat(e.target.value);
@@ -300,6 +328,10 @@ class CyclingHeatmapApp {
 
         // 日期范围
         const dateRangeSelect = document.getElementById('dateRange');
+        if (!dateRangeSelect) {
+            console.error('dateRange元素未找到');
+            return;
+        }
         dateRangeSelect.addEventListener('change', () => {
             if (this.loadedTracks.length > 0) {
                 this.updateHeatmapWithDateFilter();

@@ -72,34 +72,48 @@
 
                 <!-- Controls Panel -->
                 <div class="controls-section">
-                    <h3>⚙️ 参数设置</h3>
-                    
-                    <!-- Map Style -->
-                    <div class="control-group">
-                        <label for="mapStyle">地图样式:</label>
-                        <select id="mapStyle">
-                            <option value="dark">暗色地图 (推荐)</option>
-                            <option value="light">浅色地图</option>
-                        </select>
-                    </div>
-
-                    <!-- Map Language -->
-                    <div class="control-group">
-                        <label for="mapLanguage">地图语言:</label>
-                        <select id="mapLanguage">
-                            <option value="en" selected>English Map (CartoDB)</option>
-                            <option value="zh-vector">中文地图 (天地图矢量)</option>
-                            <option value="zh-satellite">中文卫星图 (天地图影像)</option>
-                        </select>
-                    </div>
-
-                    <!-- Advanced Parameters (Collapsible) -->
-                    <details class="advanced-params-details">
-                        <summary class="advanced-params-summary">
-                            <span>🎨 高级参数设置</span>
+                    <details class="params-details">
+                        <summary class="params-summary">
+                            <span>⚙️ 参数设置</span>
                             <span class="dropdown-arrow">▼</span>
                         </summary>
-                        <div class="advanced-params-content">
+                        <div class="params-content">
+                            <!-- Map Style -->
+                            <div class="control-group">
+                                <label for="mapStyle">地图样式:</label>
+                                <select id="mapStyle">
+                                    <option value="dark">暗色地图 (推荐)</option>
+                                    <option value="light">浅色地图</option>
+                                </select>
+                            </div>
+
+                            <!-- Map Language -->
+                            <div class="control-group">
+                                <label for="mapLanguage">地图语言:</label>
+                                <select id="mapLanguage">
+                                    <option value="en" selected>English Map (CartoDB)</option>
+                                    <option value="zh-vector">中文地图 (天地图矢量)</option>
+                                    <option value="zh-satellite">中文卫星图 (天地图影像)</option>
+                                </select>
+                            </div>
+
+                            <!-- Date Range -->
+                            <div class="control-group">
+                                <label for="dateRange">时间范围:</label>
+                                <select id="dateRange">
+                                    <option value="30">最近30天</option>
+                                    <option value="90">最近3个月</option>
+                                    <option value="180">最近6个月</option>
+                                    <option value="365" selected>最近1年</option>
+                                    <option value="0">所有时间</option>
+                                </select>
+                            </div>
+
+                            <!-- Advanced Parameters Separator -->
+                            <div class="control-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+                                <label style="font-weight: 600; color: #495057;">🎨 高级参数</label>
+                            </div>
+
                             <!-- Radius -->
                             <div class="control-group">
                                 <label for="radius">线条粗细: <span id="radiusValue">1</span></label>
@@ -117,27 +131,15 @@
                                 <label for="opacity">透明度: <span id="opacityValue">0.8</span></label>
                                 <input type="range" id="opacity" min="0.1" max="1.0" value="0.8" step="0.1">
                             </div>
+
+                            <!-- API Settings Link -->
+                            <div class="control-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e9ecef;">
+                                <a href="#" onclick="window.app.showApiKeyConfig(); return false;" class="api-settings-link">
+                                    ⚙️ API设置（可选，用于中文地图）
+                                </a>
+                            </div>
                         </div>
                     </details>
-
-                    <!-- Date Range -->
-                    <div class="control-group">
-                        <label for="dateRange">时间范围:</label>
-                        <select id="dateRange">
-                            <option value="30">最近30天</option>
-                            <option value="90">最近3个月</option>
-                            <option value="180">最近6个月</option>
-                            <option value="365" selected>最近1年</option>
-                            <option value="0">所有时间</option>
-                        </select>
-                    </div>
-
-                    <!-- API Settings Link -->
-                    <div class="control-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e9ecef;">
-                        <a href="#" onclick="window.app.showApiKeyConfig(); return false;" class="api-settings-link">
-                            ⚙️ API设置（可选，用于中文地图）
-                        </a>
-                    </div>
                 </div>
 
                 <!-- Statistics -->
