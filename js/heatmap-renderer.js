@@ -541,17 +541,88 @@ class HeatmapRenderer {
      * 导出地图为图片
      * @returns {Promise<string>} Base64图片数据
      */
-    async exportMapAsImage() {
+    /**
+     * 导出地图为图片（支持快速模式和重试机制）
+     * @param {boolean} fastMode - 是否使用快速模式（仅移动端）
+     * @param {number} retryCount - 重试次数（仅移动端）
+     * @returns {Promise<string>} Base64图片数据
+     */
+    async exportMapAsImage(fastMode = false, retryCount = 0) {
         return new Promise((resolve, reject) => {
             try {
                 const mapContainer = this.map.getContainer();
-                
-                // 移动端使用scale=1以避免内存问题，提高成功率
                 const isMobile = this.isMobileDevice();
-                const scale = isMobile ? 1 : 1;
                 
-                // 添加超时机制（移动端30秒，桌面端15秒）
-                const timeout = isMobile ? 30000 : 15000;
+                // PC端：保持原有配置（scale=1.0，高质量）
+                // 移动端：快速模式使用scale=0.8，正常模式使用scale=0.9
+                let scale, timeout, html2canvasOptions;
+                
+                if (isMobile) {
+                    // 移动端优化配置
+                    if (fastMode) {
+                        // 快速模式：scale=0.8，更激进的优化
+                        scale = 0.8;
+                        timeout = 8000; // 8秒超时
+                        html2canvasOptions = {
+                            useCORS: true,
+                            allowTaint: false, // 不允许跨域图片，提升速度
+                            backgroundColor: '#1a1a1a', // 设置背景色，避免透明处理
+                            scale: scale,
+                            logging: false,
+                            width: mapContainer.offsetWidth,
+                            height: mapContainer.offsetHeight,
+                            scrollX: 0,
+                            scrollY: 0,
+                            windowWidth: mapContainer.offsetWidth,
+                            windowHeight: mapContainer.offsetHeight,
+                            imageTimeout: 5000, // 减少图片加载超时
+                            removeContainer: true, // 移除容器，减少处理
+                            foreignObjectRendering: false, // 禁用foreignObject，提升速度
+                            ignoreElements: (element) => {
+                                // 忽略不必要的元素
+                                return element.classList && (
+                                    element.classList.contains('leaflet-control-container') ||
+                                    element.classList.contains('leaflet-control-zoom') ||
+                                    element.classList.contains('api-usage-panel') ||
+                                    element.classList.contains('map-type-indicator')
+                                );
+                            }
+                        };
+                    } else {
+                        // 正常模式：scale=0.9，平衡质量和速度
+                        scale = 0.9;
+                        timeout = 15000; // 15秒超时
+                        html2canvasOptions = {
+                            useCORS: true,
+                            allowTaint: true,
+                            backgroundColor: null,
+                            scale: scale,
+                            logging: false,
+                            width: mapContainer.offsetWidth,
+                            height: mapContainer.offsetHeight,
+                            scrollX: 0,
+                            scrollY: 0,
+                            windowWidth: mapContainer.offsetWidth,
+                            windowHeight: mapContainer.offsetHeight,
+                            imageTimeout: 8000,
+                            foreignObjectRendering: false
+                        };
+                    }
+                } else {
+                    // PC端：保持原有高质量配置
+                    scale = 1.0;
+                    timeout = 15000; // 15秒超时（保持不变）
+                    html2canvasOptions = {
+                        useCORS: true,
+                        allowTaint: true,
+                        backgroundColor: null,
+                        scale: scale,
+                        logging: false,
+                        width: mapContainer.offsetWidth,
+                        height: mapContainer.offsetHeight
+                    };
+                }
+                
                 let timeoutId = null;
                 
                 // 设置超时
@@ -559,41 +630,47 @@ class HeatmapRenderer {
                     reject(new Error('EXPORT_TIMEOUT'));
                 }, timeout);
                 
-                // 使用html2canvas截图
-                html2canvas(mapContainer, {
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: null,
-                    scale: scale,
-                    logging: false,
-                    width: mapContainer.offsetWidth,
-                    height: mapContainer.offsetHeight,
-                    // 移动端优化选项
-                    ...(isMobile ? {
-                        scrollX: 0,
-                        scrollY: 0,
-                        windowWidth: mapContainer.offsetWidth,
-                        windowHeight: mapContainer.offsetHeight,
-                        imageTimeout: 10000
-                    } : {}),
-                    onclone: (clonedDoc) => {
-                        // 确保克隆的文档中的样式正确
-                        const clonedMapContainer = clonedDoc.querySelector('#map');
-                        if (clonedMapContainer) {
-                            clonedMapContainer.style.width = mapContainer.offsetWidth + 'px';
-                            clonedMapContainer.style.height = mapContainer.offsetHeight + 'px';
-                        }
+                // 添加onclone处理（PC端和移动端都需要）
+                html2canvasOptions.onclone = (clonedDoc) => {
+                    // 确保克隆的文档中的样式正确
+                    const clonedMapContainer = clonedDoc.querySelector('#map');
+                    if (clonedMapContainer) {
+                        clonedMapContainer.style.width = mapContainer.offsetWidth + 'px';
+                        clonedMapContainer.style.height = mapContainer.offsetHeight + 'px';
                     }
-                }).then(canvas => {
+                    
+                    // 移动端快速模式：隐藏不必要的元素
+                    if (isMobile && fastMode) {
+                        const controls = clonedDoc.querySelectorAll('.leaflet-control-container, .api-usage-panel, .map-type-indicator');
+                        controls.forEach(el => {
+                            if (el) el.style.display = 'none';
+                        });
+                    }
+                };
+                
+                // 使用html2canvas截图
+                html2canvas(mapContainer, html2canvasOptions).then(canvas => {
                     // 清除超时
                     if (timeoutId) clearTimeout(timeoutId);
                     // 转换为base64
-                    const dataURL = canvas.toDataURL('image/png', 1.0);
+                    const quality = isMobile && fastMode ? 0.85 : 1.0; // 快速模式降低质量
+                    const dataURL = canvas.toDataURL('image/png', quality);
                     resolve(dataURL);
                 }).catch(error => {
                     // 清除超时
                     if (timeoutId) clearTimeout(timeoutId);
                     console.error('导出地图失败:', error);
+                    
+                    // 移动端：如果失败且未重试，尝试快速模式重试
+                    if (isMobile && retryCount === 0 && !fastMode) {
+                        console.log('移动端导出失败，尝试快速模式重试...');
+                        // 延迟后重试快速模式
+                        setTimeout(() => {
+                            this.exportMapAsImage(true, 1).then(resolve).catch(reject);
+                        }, 500);
+                        return;
+                    }
+                    
                     // 如果是移动端，返回特殊错误标识
                     if (isMobile) {
                         reject(new Error('EXPORT_FAILED_MOBILE'));
@@ -627,50 +704,92 @@ class HeatmapRenderer {
     }
 
     /**
-     * 生成图片查看页面的HTML
+     * 生成图片查看页面的HTML（移动端优化）
      * @param {string} dataURL - Base64图片数据
      * @param {string} filename - 文件名
      * @param {string} hintText - 提示文字
      * @returns {string} HTML字符串
      */
     generateImageViewerHTML(dataURL, filename, hintText = '长按图片保存到相册') {
+        const isMobile = this.isMobileDevice();
         return `
             <html>
                 <head>
                     <title>${filename}</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+                    <meta name="apple-mobile-web-app-capable" content="yes">
                     <style>
+                        * {
+                            margin: 0;
+                            padding: 0;
+                            box-sizing: border-box;
+                        }
                         body {
                             margin: 0;
-                            padding: 20px;
+                            padding: ${isMobile ? '10px' : '20px'};
                             background: #000;
                             display: flex;
+                            flex-direction: column;
                             justify-content: center;
                             align-items: center;
                             min-height: 100vh;
+                            touch-action: manipulation;
                         }
                         img {
                             max-width: 100%;
                             height: auto;
-                            border-radius: 8px;
+                            border-radius: ${isMobile ? '4px' : '8px'};
+                            display: block;
+                            user-select: none;
+                            -webkit-user-select: none;
+                            -webkit-touch-callout: default;
                         }
                         .hint {
                             position: fixed;
-                            bottom: 20px;
+                            bottom: ${isMobile ? '15px' : '20px'};
                             left: 50%;
                             transform: translateX(-50%);
-                            background: rgba(0,0,0,0.8);
+                            background: rgba(0,0,0,0.85);
                             color: white;
-                            padding: 10px 20px;
+                            padding: ${isMobile ? '8px 16px' : '10px 20px'};
                             border-radius: 20px;
-                            font-size: 14px;
+                            font-size: ${isMobile ? '12px' : '14px'};
                             text-align: center;
+                            max-width: 90%;
+                            z-index: 1000;
+                        }
+                        .share-hint {
+                            position: fixed;
+                            top: ${isMobile ? '15px' : '20px'};
+                            right: ${isMobile ? '15px' : '20px'};
+                            background: rgba(40, 167, 69, 0.9);
+                            color: white;
+                            padding: ${isMobile ? '6px 12px' : '8px 16px'};
+                            border-radius: 15px;
+                            font-size: ${isMobile ? '11px' : '13px'};
+                            z-index: 1000;
                         }
                     </style>
                 </head>
                 <body>
-                    <img src="${dataURL}" alt="${filename}">
+                    <div class="share-hint">✅ 导出成功</div>
+                    <img src="${dataURL}" alt="${filename}" id="heatmapImage">
                     <div class="hint">${hintText}</div>
+                    <script>
+                        // 移动端优化：支持双击放大
+                        const img = document.getElementById('heatmapImage');
+                        let scale = 1;
+                        img.addEventListener('dblclick', function(e) {
+                            if (scale === 1) {
+                                scale = 2;
+                                img.style.transform = 'scale(2)';
+                                img.style.transformOrigin = e.offsetX + 'px ' + e.offsetY + 'px';
+                            } else {
+                                scale = 1;
+                                img.style.transform = 'scale(1)';
+                            }
+                        });
+                    </script>
                 </body>
             </html>
         `;
@@ -786,9 +905,10 @@ class HeatmapRenderer {
     /**
      * 导出并下载地图图片
      * @param {string} filename - 可选的文件名
-     * @returns {Promise<void>}
+     * @param {boolean} fastMode - 是否使用快速模式（仅移动端）
+     * @returns {Promise<string>} Base64图片数据
      */
-    async exportAndDownload(filename) {
+    async exportAndDownload(filename, fastMode = false) {
         try {
             // 生成时间戳文件名
             if (!filename) {
@@ -797,8 +917,10 @@ class HeatmapRenderer {
                 filename = `cycling-heatmap-${timestamp}.png`;
             }
             
-            // 导出图片
-            const dataURL = await this.exportMapAsImage();
+            // 导出图片（移动端默认使用快速模式）
+            const isMobile = this.isMobileDevice();
+            const useFastMode = isMobile && fastMode;
+            const dataURL = await this.exportMapAsImage(useFastMode, 0);
             
             // 下载图片
             this.downloadImage(dataURL, filename);
@@ -808,6 +930,7 @@ class HeatmapRenderer {
             console.error('导出和下载失败:', error);
             throw error;
         }
+    }
     }
 
     /**

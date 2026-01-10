@@ -959,17 +959,25 @@ class CyclingHeatmapApp {
             // 检测是否为移动设备（复用heatmapRenderer的方法）
             const isMobile = this.heatmapRenderer.isMobileDevice();
             
-            // 显示导出进度
-            const loadingText = isMobile ? '正在导出热力图（移动端可能需要更长时间，请耐心等待）...' : '正在导出热力图...';
-            this.showLoading(true, loadingText);
+            // 移动端：显示快速导出提示
+            if (isMobile) {
+                this.showLoading(true, '正在准备导出（快速模式）...');
+                // 移动端：确保地图完全渲染（减少等待时间，提升速度）
+                await new Promise(resolve => setTimeout(resolve, 300));
+                this.showLoading(true, '正在导出热力图...');
+            } else {
+                // PC端：保持原有提示
+                this.showLoading(true, '正在导出热力图...');
+                // PC端：保持原有等待时间
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
             
-            // 移动端需要更长的等待时间确保地图完全渲染
-            const waitTime = isMobile ? 1500 : 500;
-            await new Promise(resolve => setTimeout(resolve, waitTime));
-            
-            // 添加总超时保护（移动端35秒，桌面端20秒）
-            const totalTimeout = isMobile ? 35000 : 20000;
-            const exportPromise = this.heatmapRenderer.exportAndDownload();
+            // 添加总超时保护
+            // 移动端：快速模式应该在8-15秒内完成，设置20秒超时
+            // PC端：保持20秒超时
+            const totalTimeout = isMobile ? 20000 : 20000;
+            // 移动端默认使用快速模式（fastMode=true），PC端不使用（fastMode=false）
+            const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, isMobile);
             const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
             });
@@ -992,6 +1000,7 @@ class CyclingHeatmapApp {
             // 移动端失败时显示截屏指南
             if (isMobile && (errorMsg === 'EXPORT_TIMEOUT' || errorMsg === 'EXPORT_FAILED_MOBILE' || errorMsg.includes('超时') || errorMsg.includes('失败'))) {
                 this.showScreenshotGuide();
+                this.showMessage('导出失败，已显示截屏指南', 'error');
             } else {
                 // 桌面端或其他错误，显示错误信息
                 const displayMsg = errorMsg === 'EXPORT_TIMEOUT' ? '导出超时，请稍后重试' : (errorMsg || '导出失败，请重试');
