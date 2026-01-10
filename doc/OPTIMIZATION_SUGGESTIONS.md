@@ -642,12 +642,14 @@ exportAsGeoJSON() {
 
 **实现细节：**
 ```javascript
-// 使用空间索引优化热力图渲染
-class SpatialIndex {
+// 在 heatmap-renderer.js 中实现
+static SpatialIndex = class {
     constructor(points, cellSize = 0.01) {
         this.cellSize = cellSize;
         this.grid = new Map();
+        this.points = points;
         
+        // 构建空间网格索引
         points.forEach((point, index) => {
             const key = this.getCellKey(point[0], point[1]);
             if (!this.grid.has(key)) {
@@ -663,27 +665,44 @@ class SpatialIndex {
         return `${latCell},${lonCell}`;
     }
     
-    // 获取指定区域内的点
     getPointsInBounds(bounds) {
-        const points = [];
-        const minLat = Math.floor(bounds.south / this.cellSize);
-        const maxLat = Math.floor(bounds.north / this.cellSize);
-        const minLon = Math.floor(bounds.west / this.cellSize);
-        const maxLon = Math.floor(bounds.east / this.cellSize);
-        
-        for (let lat = minLat; lat <= maxLat; lat++) {
-            for (let lon = minLon; lon <= maxLon; lon++) {
-                const key = `${lat},${lon}`;
-                if (this.grid.has(key)) {
-                    points.push(...this.grid.get(key));
-                }
-            }
-        }
-        
-        return points;
+        // 获取指定边界范围内的点
+        // 扩展边界确保边缘点也被包含
+        // 精确检查点是否在边界内
     }
+};
+
+// 在 renderHeatmap 中使用
+renderHeatmap(points) {
+    // 判断是否需要使用空间索引（超过10万点）
+    this.useSpatialIndex = points.length > this.spatialIndexThreshold;
+    
+    if (this.useSpatialIndex) {
+        // 构建空间索引
+        this.spatialIndex = new HeatmapRenderer.SpatialIndex(points);
+        // 绑定地图移动事件
+        this.bindMapMoveEvents();
+        // 只渲染当前视野范围内的点
+        const visiblePoints = this.spatialIndex.getPointsInBounds(this.map.getBounds());
+        points = visiblePoints;
+    }
+    
+    // 渲染热力图...
+}
+
+// 地图移动时动态更新
+updateVisibleHeatmap() {
+    const bounds = this.map.getBounds();
+    const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
+    // 重新创建热力图层，只显示可见点
 }
 ```
+
+**效果：**
+- 超大数据集（10万+点）的渲染性能显著提升
+- 地图缩放/平移时响应更快
+- 减少内存占用（只渲染可见点）
+- 小数据集不受影响，保持原有性能
 
 ### 15. 本地存储功能 ✅ **已完成**
 
