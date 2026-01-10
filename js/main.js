@@ -1720,18 +1720,11 @@ class CyclingHeatmapApp {
             }
             
             // Web Share API不支持或失败，降级到下载
-            this.showLoading(true, '正在保存图片...');
-            try {
-                this.heatmapRenderer.downloadImage(dataURL, filename);
-                this.showLoading(false);
-                this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
-            } catch (downloadError) {
-                // 下载也失败，显示模态框
-                logger.warn('下载失败，显示图片模态框:', downloadError);
-                this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
-                this.showLoading(false);
-                this.showMessage('图片已显示，请长按保存', 'success');
-            }
+            // 注意：在移动端，downloadImage可能不会抛出错误，但实际可能没有成功
+            // 所以我们需要直接显示模态框，这是最可靠的方式
+            this.showLoading(false);
+            this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
+            this.showMessage('图片已显示，请长按保存', 'success');
             
         } catch (error) {
             ErrorHandler.handle(error, 'exportMap', {
