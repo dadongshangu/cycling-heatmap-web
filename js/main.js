@@ -991,37 +991,62 @@ class CyclingHeatmapApp {
             // 检测是否为移动设备（复用heatmapRenderer的方法）
             const isMobile = this.heatmapRenderer.isMobileDevice();
             
-            // 移动端：显示快速导出提示
-            if (isMobile) {
-                this.showLoading(true, '正在准备导出（快速模式）...');
-                // 移动端：确保地图完全渲染（减少等待时间，提升速度）
-                await new Promise(resolve => setTimeout(resolve, 300));
+            // PC端：完全使用原有逻辑（保持不变）
+            if (!isMobile) {
                 this.showLoading(true, '正在导出热力图...');
-            } else {
-                // PC端：保持原有提示
-                this.showLoading(true, '正在导出热力图...');
-                // PC端：保持原有等待时间
                 await new Promise(resolve => setTimeout(resolve, 500));
+                
+                const totalTimeout = 20000;
+                const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, false);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
+                });
+                
+                await Promise.race([exportPromise, timeoutPromise]);
+                this.showMessage('热力图导出成功！', 'success');
+                return;
             }
             
-            // 添加总超时保护
-            // 移动端：快速模式应该在8-15秒内完成，设置20秒超时
-            // PC端：保持20秒超时
-            const totalTimeout = isMobile ? 20000 : 20000;
-            // 移动端默认使用快速模式（fastMode=true），PC端不使用（fastMode=false）
-            const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, isMobile);
+            // 移动端：新的导出流程（优先Web Share API，保持高质量）
+            this.showLoading(true, '正在生成高质量图片...');
+            
+            // 确保地图完全渲染
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // 生成时间戳文件名
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `cycling-heatmap-${timestamp}.png`;
+            
+            // 生成高质量图片（scale=1.0，不使用fastMode）
+            this.showLoading(true, '正在导出热力图（高质量）...');
+            const totalTimeout = 25000; // 移动端高质量导出可能需要更长时间
+            const exportPromise = this.heatmapRenderer.exportMapAsImage(false, 0);
             const timeoutPromise = new Promise((_, reject) => {
                 setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
             });
             
-            // 导出并下载图片
-            await Promise.race([exportPromise, timeoutPromise]);
+            const dataURL = await Promise.race([exportPromise, timeoutPromise]);
             
-            // 移动端提示
-            if (isMobile) {
+            // 尝试Web Share API（优先）
+            this.showLoading(true, '正在准备分享...');
+            const shared = await this.heatmapRenderer.shareImageWithWebShare(dataURL, filename);
+            
+            if (shared) {
+                this.showMessage('热力图已分享，请选择保存到相册', 'success');
+                return;
+            }
+            
+            // Web Share API不支持或失败，降级到下载
+            this.showLoading(true, '正在保存图片...');
+            try {
+                this.heatmapRenderer.downloadImage(dataURL, filename);
                 this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
-            } else {
-                this.showMessage('热力图导出成功！', 'success');
+            } catch (downloadError) {
+                // 下载也失败，显示模态框
+                console.warn('下载失败，显示图片模态框:', downloadError);
+                this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
+                this.showMessage('图片已显示，请长按保存', 'success');
             }
             
         } catch (error) {
@@ -1029,12 +1054,23 @@ class CyclingHeatmapApp {
             const isMobile = this.heatmapRenderer.isMobileDevice();
             const errorMsg = error.message || '';
             
-            // 移动端失败时显示截屏指南
-            if (isMobile && (errorMsg === 'EXPORT_TIMEOUT' || errorMsg === 'EXPORT_FAILED_MOBILE' || errorMsg.includes('超时') || errorMsg.includes('失败'))) {
-                this.showScreenshotGuide();
-                this.showMessage('导出失败，已显示截屏指南', 'error');
+            // 移动端失败时显示截屏指南或图片模态框
+            if (isMobile) {
+                if (errorMsg === 'EXPORT_TIMEOUT' || errorMsg === 'EXPORT_FAILED_MOBILE' || errorMsg.includes('超时') || errorMsg.includes('失败')) {
+                    // 如果已经生成了图片，尝试显示
+                    try {
+                        // 这里无法获取dataURL，所以显示截屏指南
+                        this.showScreenshotGuide();
+                        this.showMessage('导出超时，已显示截屏指南', 'error');
+                    } catch (e) {
+                        this.showScreenshotGuide();
+                        this.showMessage('导出失败，已显示截屏指南', 'error');
+                    }
+                } else {
+                    this.showMessage('导出失败: ' + (errorMsg || '未知错误'), 'error');
+                }
             } else {
-                // 桌面端或其他错误，显示错误信息
+                // PC端错误处理（保持不变）
                 const displayMsg = errorMsg === 'EXPORT_TIMEOUT' ? '导出超时，请稍后重试' : (errorMsg || '导出失败，请重试');
                 this.showMessage('导出地图时出错: ' + displayMsg, 'error');
             }

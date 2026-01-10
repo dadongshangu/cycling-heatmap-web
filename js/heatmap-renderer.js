@@ -558,11 +558,11 @@ class HeatmapRenderer {
                 let scale, timeout, html2canvasOptions;
                 
                 if (isMobile) {
-                    // 移动端优化配置
+                    // 移动端：保持高质量（scale=1.0），优化其他配置以提升成功率
                     if (fastMode) {
-                        // 快速模式：scale=0.8，更激进的优化
-                        scale = 0.8;
-                        timeout = 8000; // 8秒超时
+                        // 快速模式：scale=1.0（保持高质量），但优化其他参数
+                        scale = 1.0;
+                        timeout = 20000; // 20秒超时（高质量需要更长时间）
                         html2canvasOptions = {
                             useCORS: true,
                             allowTaint: false, // 不允许跨域图片，提升速度
@@ -575,7 +575,7 @@ class HeatmapRenderer {
                             scrollY: 0,
                             windowWidth: mapContainer.offsetWidth,
                             windowHeight: mapContainer.offsetHeight,
-                            imageTimeout: 5000, // 减少图片加载超时
+                            imageTimeout: 10000, // 增加图片加载超时，确保瓦片加载完成
                             removeContainer: true, // 移除容器，减少处理
                             foreignObjectRendering: false, // 禁用foreignObject，提升速度
                             ignoreElements: (element) => {
@@ -589,9 +589,9 @@ class HeatmapRenderer {
                             }
                         };
                     } else {
-                        // 正常模式：scale=0.9，平衡质量和速度
-                        scale = 0.9;
-                        timeout = 15000; // 15秒超时
+                        // 正常模式：scale=1.0（高质量），优化配置
+                        scale = 1.0;
+                        timeout = 25000; // 25秒超时（高质量需要更长时间）
                         html2canvasOptions = {
                             useCORS: true,
                             allowTaint: true,
@@ -604,12 +604,12 @@ class HeatmapRenderer {
                             scrollY: 0,
                             windowWidth: mapContainer.offsetWidth,
                             windowHeight: mapContainer.offsetHeight,
-                            imageTimeout: 8000,
+                            imageTimeout: 12000, // 增加图片加载超时
                             foreignObjectRendering: false
                         };
                     }
                 } else {
-                    // PC端：保持原有高质量配置
+                    // PC端：保持原有高质量配置（完全不变）
                     scale = 1.0;
                     timeout = 15000; // 15秒超时（保持不变）
                     html2canvasOptions = {
@@ -652,9 +652,8 @@ class HeatmapRenderer {
                 html2canvas(mapContainer, html2canvasOptions).then(canvas => {
                     // 清除超时
                     if (timeoutId) clearTimeout(timeoutId);
-                    // 转换为base64
-                    const quality = isMobile && fastMode ? 0.85 : 1.0; // 快速模式降低质量
-                    const dataURL = canvas.toDataURL('image/png', quality);
+                    // 转换为base64（保持高质量，quality=1.0）
+                    const dataURL = canvas.toDataURL('image/png', 1.0);
                     resolve(dataURL);
                 }).catch(error => {
                     // 清除超时
@@ -847,58 +846,210 @@ class HeatmapRenderer {
     }
 
     /**
+     * 将DataURL转换为Blob
+     * @param {string} dataURL - Base64图片数据
+     * @returns {Promise<Blob>}
+     */
+    async dataURLtoBlob(dataURL) {
+        const response = await fetch(dataURL);
+        return await response.blob();
+    }
+
+    /**
+     * 使用Web Share API分享图片（移动端优先）
+     * @param {string} dataURL - Base64图片数据
+     * @param {string} filename - 文件名
+     * @returns {Promise<boolean>} 是否成功分享
+     */
+    async shareImageWithWebShare(dataURL, filename = 'cycling-heatmap.png') {
+        // 检查Web Share API支持
+        if (!navigator.share || !navigator.canShare) {
+            return false;
+        }
+
+        try {
+            // 转换dataURL为Blob
+            const blob = await this.dataURLtoBlob(dataURL);
+            const file = new File([blob], filename, { type: 'image/png' });
+            
+            // 检查是否可以分享文件
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: '我的骑行热力图',
+                    text: '查看我的骑行轨迹热力图'
+                });
+                return true;
+            }
+        } catch (error) {
+            // 用户取消分享不算错误
+            if (error.name === 'AbortError') {
+                console.log('用户取消了分享');
+                return true; // 用户主动取消，视为成功
+            }
+            console.log('Web Share API失败，使用备用方案:', error);
+        }
+        return false;
+    }
+
+    /**
+     * 在模态框中显示图片（改进版，避免弹窗被阻止）
+     * @param {string} dataURL - Base64图片数据
+     * @param {string} filename - 文件名
+     * @param {string} hintText - 提示文字
+     */
+    showImageInModal(dataURL, filename = 'cycling-heatmap.png', hintText = '长按图片保存到相册') {
+        // 移除已存在的模态框
+        const existingModal = document.getElementById('imageExportModal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const isMobile = this.isMobileDevice();
+        const modal = document.createElement('div');
+        modal.id = 'imageExportModal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 10000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            padding: ${isMobile ? '10px' : '20px'};
+        `;
+
+        modal.innerHTML = `
+            <div style="position: relative; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column; align-items: center;">
+                <div style="position: absolute; top: ${isMobile ? '-40px' : '-50px'}; right: 0; display: flex; gap: 10px;">
+                    ${isMobile && navigator.share ? `
+                        <button id="shareImageBtn" style="padding: ${isMobile ? '8px 16px' : '10px 20px'}; background: #28a745; color: white; border: none; border-radius: 20px; font-size: ${isMobile ? '12px' : '14px'}; cursor: pointer;">
+                            📤 分享
+                        </button>
+                    ` : ''}
+                    <button id="closeImageModalBtn" style="padding: ${isMobile ? '8px 16px' : '10px 20px'}; background: #6c757d; color: white; border: none; border-radius: 20px; font-size: ${isMobile ? '12px' : '14px'}; cursor: pointer;">
+                        关闭
+                    </button>
+                </div>
+                <img src="${dataURL}" alt="${filename}" id="exportedImage" style="max-width: 100%; max-height: 80vh; height: auto; border-radius: 8px; display: block; user-select: none; -webkit-user-select: none; -webkit-touch-callout: default;">
+                <div style="color: white; margin-top: ${isMobile ? '15px' : '20px'}; text-align: center; padding: ${isMobile ? '8px 16px' : '10px 20px'}; background: rgba(0,0,0,0.8); border-radius: 20px; font-size: ${isMobile ? '12px' : '14px'}; max-width: 90%;">
+                    ${hintText}
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 关闭按钮
+        const closeBtn = document.getElementById('closeImageModalBtn');
+        closeBtn.addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // 点击背景关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+
+        // 分享按钮（如果支持）
+        if (isMobile && navigator.share) {
+            const shareBtn = document.getElementById('shareImageBtn');
+            shareBtn.addEventListener('click', async () => {
+                try {
+                    const blob = await this.dataURLtoBlob(dataURL);
+                    const file = new File([blob], filename, { type: 'image/png' });
+                    if (navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: '我的骑行热力图',
+                            text: '查看我的骑行轨迹热力图'
+                        });
+                    }
+                } catch (error) {
+                    if (error.name !== 'AbortError') {
+                        console.error('分享失败:', error);
+                    }
+                }
+            });
+        }
+
+        // ESC键关闭
+        const handleEsc = (e) => {
+            if (e.key === 'Escape') {
+                modal.remove();
+                document.removeEventListener('keydown', handleEsc);
+            }
+        };
+        document.addEventListener('keydown', handleEsc);
+    }
+
+    /**
      * 下载导出的图片
      * @param {string} dataURL - Base64图片数据
      * @param {string} filename - 文件名
      */
     downloadImage(dataURL, filename = 'cycling-heatmap.png') {
         try {
-            // 移动端特殊处理
-            if (this.isMobileDevice()) {
-                // iOS设备：打开新窗口显示图片，让用户长按保存
-                if (this.isIOSDevice()) {
-                    if (this.openImageInNewWindow(dataURL, filename, '长按图片保存到相册')) {
-                        return;
-                    } else {
-                        throw new Error('无法打开图片窗口，请检查浏览器弹窗设置');
-                    }
-                }
-                
-                // Android或其他移动设备：尝试下载，如果失败则打开新窗口
-                try {
-                    const link = document.createElement('a');
-                    link.download = filename;
-                    link.href = dataURL;
-                    link.style.display = 'none';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    console.log('✓ 图片下载成功:', filename);
+            // PC端：正常下载（完全不变）
+            if (!this.isMobileDevice()) {
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = dataURL;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                console.log('✓ 图片下载成功:', filename);
+                return;
+            }
+            
+            // 移动端：优先使用Web Share API，然后降级
+            // 注意：Web Share API是异步的，但downloadImage是同步方法
+            // 所以Web Share应该在调用downloadImage之前处理
+            // 这里保留原有的降级逻辑作为最后备用
+            
+            // iOS设备：打开新窗口显示图片，让用户长按保存
+            if (this.isIOSDevice()) {
+                if (this.openImageInNewWindow(dataURL, filename, '长按图片保存到相册')) {
                     return;
-                } catch (e) {
-                    // 如果下载失败，打开新窗口
-                    console.warn('下载失败，尝试打开新窗口:', e);
-                    if (this.openImageInNewWindow(dataURL, filename, '长按图片保存')) {
-                        return;
-                    } else {
-                        throw new Error('无法下载或显示图片，请检查浏览器设置');
-                    }
+                } else {
+                    // 如果新窗口失败，使用模态框
+                    this.showImageInModal(dataURL, filename, '长按图片保存到相册');
+                    return;
                 }
             }
             
-            // 桌面端：正常下载
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = dataURL;
-            link.style.display = 'none';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            console.log('✓ 图片下载成功:', filename);
+            // Android或其他移动设备：尝试下载，如果失败则显示模态框
+            try {
+                const link = document.createElement('a');
+                link.download = filename;
+                link.href = dataURL;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                console.log('✓ 图片下载成功:', filename);
+                return;
+            } catch (e) {
+                // 如果下载失败，显示模态框
+                console.warn('下载失败，显示图片模态框:', e);
+                this.showImageInModal(dataURL, filename, '长按图片保存');
+                return;
+            }
         } catch (error) {
             console.error('下载图片失败:', error);
-            throw error;
+            // 移动端失败时显示模态框而不是抛出错误
+            if (this.isMobileDevice()) {
+                this.showImageInModal(dataURL, filename, '长按图片保存到相册');
+            } else {
+                throw error;
+            }
         }
     }
 

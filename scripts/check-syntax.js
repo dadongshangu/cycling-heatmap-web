@@ -47,19 +47,47 @@ function checkBracketMatching(content) {
         const line = lines[i];
         const lineNum = i + 1;
         
-        for (let j = 0; j < line.length; j++) {
-            const char = line[j];
-            
-            // 跳过字符串和注释
-            if (char === '"' || char === "'" || char === '`') {
-                const quote = char;
-                j++;
-                while (j < line.length && line[j] !== quote) {
-                    if (line[j] === '\\') j++; // 跳过转义字符
+            for (let j = 0; j < line.length; j++) {
+                const char = line[j];
+                
+                // 跳过字符串和注释
+                if (char === '"' || char === "'" || char === '`') {
+                    const quote = char;
                     j++;
+                    // 对于模板字符串（反引号），需要处理${}表达式
+                    if (quote === '`') {
+                        while (j < line.length) {
+                            if (line[j] === '\\') {
+                                j++; // 跳过转义字符
+                            } else if (line[j] === '$' && j + 1 < line.length && line[j + 1] === '{') {
+                                // 遇到${，跳过整个表达式（包括嵌套的括号）
+                                j += 2; // 跳过${
+                                let braceCount = 1;
+                                while (j < line.length && braceCount > 0) {
+                                    if (line[j] === '\\') {
+                                        j++; // 跳过转义字符
+                                    } else if (line[j] === '{') {
+                                        braceCount++;
+                                    } else if (line[j] === '}') {
+                                        braceCount--;
+                                    }
+                                    j++;
+                                }
+                                j--; // 回退一位，因为外层循环会++
+                            } else if (line[j] === quote) {
+                                break; // 找到结束引号
+                            }
+                            j++;
+                        }
+                    } else {
+                        // 普通字符串
+                        while (j < line.length && line[j] !== quote) {
+                            if (line[j] === '\\') j++; // 跳过转义字符
+                            j++;
+                        }
+                    }
+                    continue;
                 }
-                continue;
-            }
             
             if (char === '/' && line[j + 1] === '/') break; // 单行注释
             if (char === '/' && line[j + 1] === '*') {

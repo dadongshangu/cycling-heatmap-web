@@ -107,8 +107,10 @@ GPX文件 → 文件读取 → XML解析 → 坐标提取 → 数据处理 → �
 
 #### 2. 导出功能
 - **图片导出**: 将热力图导出为PNG图片
-- **高清渲染**: 支持高分辨率导出
-- **移动端优化**: 移动端导出失败时提供截屏指南
+- **高清渲染**: 支持高分辨率导出（scale=1.0，PC端和移动端均保持高质量）
+- **Web Share API**: 移动端优先使用原生分享API，提升用户体验
+- **智能降级**: Web Share API不可用时，自动降级到下载或图片模态框
+- **移动端优化**: 改进的图片模态框，支持长按保存，避免弹窗被阻止
 
 #### 3. 个性化设置
 - **参数调节**: 线条粗细、模糊度、透明度（高级参数默认折叠）
@@ -269,6 +271,7 @@ function cleanTrackData(points) {
 - 生成热力图图层
 - 管理渲染参数
 - 性能优化
+- 图片导出和分享（PC端和移动端）
 
 #### 关键函数
 ```javascript
@@ -293,6 +296,21 @@ function updateHeatmapParams(params) {
     // 重新渲染图层
     // 优化性能
 }
+
+// 移动端导出（新增）
+async shareImageWithWebShare(dataURL, filename) {
+    // 检测Web Share API支持
+    // 转换dataURL为Blob/File
+    // 调用原生分享API
+}
+
+// 图片模态框显示（改进）
+showImageInModal(dataURL, filename, hintText) {
+    // 创建模态框
+    // 显示图片
+    // 支持长按保存
+    // 支持分享按钮（如果支持Web Share API）
+}
 ```
 
 #### 渲染参数
@@ -300,6 +318,14 @@ function updateHeatmapParams(params) {
 - **blur**: 模糊程度
 - **opacity**: 透明度
 - **gradient**: 颜色渐变配置
+
+#### 导出功能
+- **PC端**: 直接下载高质量PNG图片
+- **移动端**: 
+  - 优先使用Web Share API分享
+  - 降级到下载（Android）
+  - 最后显示图片模态框（长按保存）
+- **质量保证**: PC端和移动端均使用scale=1.0，保持高质量
 
 ### 4. 地图配置器 (map-config.js)
 
