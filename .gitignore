@@ -31,11 +31,12 @@ npm-debug.log*
 *config*.js
 !map-config.js
 
-# 测试文件
+# 测试文件（但保留测试脚本和文档）
 test-*
-*TEST*.md
-*TEST*.js
 *TEST*.html
+# 允许测试脚本和文档
+!scripts/test-all.js
+!doc/TESTING_GUIDE.md
 
 # 转换工具和临时文件
 convert*.py
