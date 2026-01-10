@@ -191,9 +191,15 @@ class CyclingHeatmapApp {
      * 处理文件选择
      */
     handleFileSelect(e) {
-        const files = Array.from(e.target.files);
+        const files = Array.from(e.target.files).filter(file => 
+            file.name.toLowerCase().endsWith('.gpx')
+        );
+        
         if (files.length > 0) {
             this.processFiles(files);
+        } else if (e.target.files.length > 0) {
+            // 如果选择了文件但不是GPX格式，给出提示
+            this.showMessage('请选择轨迹记录GPX文件（.gpx格式）', 'warning');
         }
     }
 
