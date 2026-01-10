@@ -859,58 +859,11 @@ class CyclingHeatmapApp {
             
             // 对每个轨迹段分别处理，保持轨迹边界，避免在不同轨迹之间插值
             const maxPoints = 50000; // 最大点数限制
-            const finalPoints = [];
-            const cutoffDate = dateRange > 0 ? new Date() : null;
-            if (cutoffDate) {
-                cutoffDate.setDate(cutoffDate.getDate() - dateRange);
-            }
-            const cutoffTime = cutoffDate ? cutoffDate.getTime() : null;
-            let totalBeforeSampling = 0;
-            let totalAfterSampling = 0;
-            
-            // 对每个轨迹段分别处理
-            for (let i = 0; i < this.loadedTracks.length; i++) {
-                const track = this.loadedTracks[i];
-                
-                // 根据日期范围过滤当前轨迹的点
-                const filteredTrackPoints = track.points
-                    .filter(point => {
-                        if (cutoffTime === null) return true;
-                        if (point.timestamp && point.timestamp >= cutoffTime) return true;
-                        if (!point.timestamp) return true; // 没有时间戳的点包含在内
-                        return false;
-                    })
-                    .map(point => [point.lat, point.lon]);
-                
-                if (filteredTrackPoints.length === 0) continue;
-                
-                totalBeforeSampling += filteredTrackPoints.length;
-                
-                // 对当前轨迹段进行采样（如果需要）
-                let sampledPoints = filteredTrackPoints;
-                if (filteredTrackPoints.length > maxPoints / this.loadedTracks.length) {
-                    // 为每个轨迹段分配合理的点数配额
-                    const trackMaxPoints = Math.max(1000, Math.floor(maxPoints / this.loadedTracks.length));
-                    sampledPoints = this.samplePoints(filteredTrackPoints, trackMaxPoints);
-                }
-                
-                totalAfterSampling += sampledPoints.length;
-                
-                // 对当前轨迹段进行插值（只在轨迹段内部插值，不跨轨迹段）
-                const interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], 0.0005);
-                
-                // 将当前轨迹段的点添加到最终数组
-                finalPoints.push(...interpolatedPoints);
-            }
+            const finalPoints = await this.processTracksAsync(this.loadedTracks, dateRange, maxPoints);
             
             if (finalPoints.length === 0) {
                 this.showMessage('在指定时间范围内没有找到轨迹点', 'warning');
                 return;
-            }
-            
-            // 如果进行了采样，显示提示信息
-            if (totalBeforeSampling > maxPoints) {
-                this.showMessage(`为了性能优化，已使用Douglas-Peucker算法将 ${totalBeforeSampling.toLocaleString()} 个点优化为 ${totalAfterSampling.toLocaleString()} 个点，保持轨迹形状`, 'info');
             }
             
             // 更新热力图参数
@@ -946,6 +899,84 @@ class CyclingHeatmapApp {
         } finally {
             this.showLoading(false);
         }
+    }
+
+    /**
+     * 异步处理所有轨迹段，保持轨迹边界，避免在不同轨迹之间插值
+     * @param {Array} tracks - 轨迹数组
+     * @param {number} dateRange - 日期范围（天数）
+     * @param {number} maxPoints - 最大点数限制
+     * @returns {Promise<Array>} 处理后的轨迹点数组
+     */
+    async processTracksAsync(tracks, dateRange, maxPoints) {
+        return new Promise((resolve) => {
+            const finalPoints = [];
+            const cutoffDate = dateRange > 0 ? new Date() : null;
+            if (cutoffDate) {
+                cutoffDate.setDate(cutoffDate.getDate() - dateRange);
+            }
+            const cutoffTime = cutoffDate ? cutoffDate.getTime() : null;
+            let totalBeforeSampling = 0;
+            let totalAfterSampling = 0;
+            let trackIndex = 0;
+            
+            // 使用异步处理，避免阻塞UI
+            const processNextTrack = () => {
+                if (trackIndex >= tracks.length) {
+                    // 所有轨迹处理完成
+                    if (totalBeforeSampling > maxPoints) {
+                        this.showMessage(`为了性能优化，已使用Douglas-Peucker算法将 ${totalBeforeSampling.toLocaleString()} 个点优化为 ${totalAfterSampling.toLocaleString()} 个点，保持轨迹形状`, 'info');
+                    }
+                    resolve(finalPoints);
+                    return;
+                }
+                
+                const track = tracks[trackIndex];
+                
+                // 更新进度提示
+                if (tracks.length > 1) {
+                    this.showLoading(true, `正在处理轨迹 ${trackIndex + 1}/${tracks.length}...`);
+                }
+                
+                // 根据日期范围过滤当前轨迹的点
+                const filteredTrackPoints = track.points
+                    .filter(point => {
+                        if (cutoffTime === null) return true;
+                        if (point.timestamp && point.timestamp >= cutoffTime) return true;
+                        if (!point.timestamp) return true; // 没有时间戳的点包含在内
+                        return false;
+                    })
+                    .map(point => [point.lat, point.lon]);
+                
+                if (filteredTrackPoints.length > 0) {
+                    totalBeforeSampling += filteredTrackPoints.length;
+                    
+                    // 对当前轨迹段进行采样（如果需要）
+                    let sampledPoints = filteredTrackPoints;
+                    if (filteredTrackPoints.length > maxPoints / tracks.length) {
+                        // 为每个轨迹段分配合理的点数配额
+                        const trackMaxPoints = Math.max(1000, Math.floor(maxPoints / tracks.length));
+                        sampledPoints = this.samplePoints(filteredTrackPoints, trackMaxPoints);
+                    }
+                    
+                    totalAfterSampling += sampledPoints.length;
+                    
+                    // 对当前轨迹段进行插值（只在轨迹段内部插值，不跨轨迹段）
+                    const interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], 0.0005);
+                    
+                    // 将当前轨迹段的点添加到最终数组
+                    finalPoints.push(...interpolatedPoints);
+                }
+                
+                trackIndex++;
+                
+                // 使用setTimeout让出控制权，避免阻塞UI
+                setTimeout(processNextTrack, 0);
+            };
+            
+            // 开始处理
+            processNextTrack();
+        });
     }
 
     /**
