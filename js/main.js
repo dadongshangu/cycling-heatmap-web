@@ -857,22 +857,60 @@ class CyclingHeatmapApp {
             // 获取日期过滤参数
             const dateRange = parseInt(document.getElementById('dateRange').value);
             
-            // 分批过滤轨迹点，避免栈溢出
-            const filteredPoints = await this.filterPointsAsync(this.loadedTracks, dateRange);
+            // 对每个轨迹段分别处理，保持轨迹边界，避免在不同轨迹之间插值
+            const maxPoints = 50000; // 最大点数限制
+            const finalPoints = [];
+            const cutoffDate = dateRange > 0 ? new Date() : null;
+            if (cutoffDate) {
+                cutoffDate.setDate(cutoffDate.getDate() - dateRange);
+            }
+            const cutoffTime = cutoffDate ? cutoffDate.getTime() : null;
+            let totalBeforeSampling = 0;
+            let totalAfterSampling = 0;
             
-            if (filteredPoints.length === 0) {
+            // 对每个轨迹段分别处理
+            for (let i = 0; i < this.loadedTracks.length; i++) {
+                const track = this.loadedTracks[i];
+                
+                // 根据日期范围过滤当前轨迹的点
+                const filteredTrackPoints = track.points
+                    .filter(point => {
+                        if (cutoffTime === null) return true;
+                        if (point.timestamp && point.timestamp >= cutoffTime) return true;
+                        if (!point.timestamp) return true; // 没有时间戳的点包含在内
+                        return false;
+                    })
+                    .map(point => [point.lat, point.lon]);
+                
+                if (filteredTrackPoints.length === 0) continue;
+                
+                totalBeforeSampling += filteredTrackPoints.length;
+                
+                // 对当前轨迹段进行采样（如果需要）
+                let sampledPoints = filteredTrackPoints;
+                if (filteredTrackPoints.length > maxPoints / this.loadedTracks.length) {
+                    // 为每个轨迹段分配合理的点数配额
+                    const trackMaxPoints = Math.max(1000, Math.floor(maxPoints / this.loadedTracks.length));
+                    sampledPoints = this.samplePoints(filteredTrackPoints, trackMaxPoints);
+                }
+                
+                totalAfterSampling += sampledPoints.length;
+                
+                // 对当前轨迹段进行插值（只在轨迹段内部插值，不跨轨迹段）
+                const interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], 0.0005);
+                
+                // 将当前轨迹段的点添加到最终数组
+                finalPoints.push(...interpolatedPoints);
+            }
+            
+            if (finalPoints.length === 0) {
                 this.showMessage('在指定时间范围内没有找到轨迹点', 'warning');
                 return;
             }
             
-            // 检查点数量，如果太多则进行采样
-            const maxPoints = 50000; // 最大点数限制
-            let finalPoints = filteredPoints;
-            
-            if (filteredPoints.length > maxPoints) {
-                this.showLoading(true, `数据点过多(${filteredPoints.length.toLocaleString()}个)，正在使用智能算法优化...`);
-                finalPoints = this.samplePoints(filteredPoints, maxPoints);
-                this.showMessage(`为了性能优化，已使用Douglas-Peucker算法将 ${filteredPoints.length.toLocaleString()} 个点优化为 ${finalPoints.length.toLocaleString()} 个点，保持轨迹形状`, 'info');
+            // 如果进行了采样，显示提示信息
+            if (totalBeforeSampling > maxPoints) {
+                this.showMessage(`为了性能优化，已使用Douglas-Peucker算法将 ${totalBeforeSampling.toLocaleString()} 个点优化为 ${totalAfterSampling.toLocaleString()} 个点，保持轨迹形状`, 'info');
             }
             
             // 更新热力图参数
@@ -1015,6 +1053,76 @@ class CyclingHeatmapApp {
             // 所有点都在容差范围内，只保留起点和终点
             return [points[0], points[end]];
         }
+    }
+
+    /**
+     * 在轨迹点之间进行线性插值，确保连续性
+     * 只在同一轨迹段内的点之间插值，不在不同轨迹段之间插值
+     * @param {Array} tracks - 轨迹数组，每个轨迹包含points数组
+     * @param {number} maxDistance - 最大距离阈值（度），超过此距离的点对之间会插值
+     * @returns {Array} 插值后的轨迹点 [[lat, lon], ...]
+     */
+    interpolateTrackPoints(tracks, maxDistance = 0.0005) {
+        if (!tracks || tracks.length === 0) {
+            return [];
+        }
+        
+        const allInterpolatedPoints = [];
+        
+        // 对每个轨迹段分别进行插值
+        for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
+            const track = tracks[trackIndex];
+            const points = track.points || track; // 兼容两种数据结构
+            
+            if (!points || points.length < 2) {
+                // 如果轨迹点少于2个，直接添加（如果有的话）
+                if (points && points.length === 1) {
+                    allInterpolatedPoints.push(points[0]);
+                }
+                continue;
+            }
+            
+            // 在当前轨迹段内进行插值
+            const interpolatedPoints = [points[0]]; // 保留第一个点
+            
+            for (let i = 1; i < points.length; i++) {
+                const prevPoint = points[i - 1];
+                const currPoint = points[i];
+                
+                // 确保点是数组格式 [lat, lon]
+                const prev = Array.isArray(prevPoint) ? prevPoint : [prevPoint.lat, prevPoint.lon];
+                const curr = Array.isArray(currPoint) ? currPoint : [currPoint.lat, currPoint.lon];
+                
+                // 计算两点间的距离（度）
+                const latDiff = curr[0] - prev[0];
+                const lonDiff = curr[1] - prev[1];
+                const distance = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
+                
+                // 如果距离超过阈值，进行插值
+                if (distance > maxDistance) {
+                    // 计算需要插入的点数
+                    const numInterpolated = Math.ceil(distance / maxDistance);
+                    
+                    // 在两点之间插入中间点
+                    for (let j = 1; j <= numInterpolated; j++) {
+                        const ratio = j / (numInterpolated + 1);
+                        const interpolatedPoint = [
+                            prev[0] + latDiff * ratio,
+                            prev[1] + lonDiff * ratio
+                        ];
+                        interpolatedPoints.push(interpolatedPoint);
+                    }
+                }
+                
+                // 添加当前点
+                interpolatedPoints.push(curr);
+            }
+            
+            // 将当前轨迹段的插值点添加到总数组
+            allInterpolatedPoints.push(...interpolatedPoints);
+        }
+        
+        return allInterpolatedPoints;
     }
 
     /**
