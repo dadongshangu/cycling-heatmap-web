@@ -12,7 +12,7 @@ class HeatmapRenderer {
         this.mapLanguage = 'en'; // 默认英文地图，节省API使用量
         this.currentBaseLayers = []; // 当前基础图层
         // 安全初始化使用量跟踪器
-        this.usageTracker = (typeof TiandituUsageTracker !== 'undefined') 
+        this.usageTracker = (Utils.isDefined(TiandituUsageTracker) && Utils.isFunction(TiandituUsageTracker))
             ? new TiandituUsageTracker() 
             : null;
         this.heatmapOptions = {
@@ -27,6 +27,7 @@ class HeatmapRenderer {
         this.useSpatialIndex = false;
         this.spatialIndexThreshold = 100000; // 超过10万点才启用空间索引
         this.updateVisibleHeatmapDebounced = null;
+        this.updateVisibleHeatmapTimeout = null; // 保存 timeout ID 以便清理
         
         // html2canvas 延迟加载相关
         this.html2canvasLoaded = false;
@@ -42,10 +43,10 @@ class HeatmapRenderer {
      */
     initializeMap() {
         // 使用默认值，防止MAP_CONFIG未加载的情况
-        const defaultCenter = (typeof MAP_CONFIG !== 'undefined' && MAP_CONFIG.DEFAULT_CENTER) 
+        const defaultCenter = (Utils.isDefined(MAP_CONFIG) && MAP_CONFIG.DEFAULT_CENTER) 
             ? MAP_CONFIG.DEFAULT_CENTER 
             : [31.2304, 121.4737]; // 上海
-        const defaultZoom = (typeof MAP_CONFIG !== 'undefined' && MAP_CONFIG.DEFAULT_ZOOM) 
+        const defaultZoom = (Utils.isDefined(MAP_CONFIG) && MAP_CONFIG.DEFAULT_ZOOM) 
             ? MAP_CONFIG.DEFAULT_ZOOM 
             : 11;
 
@@ -153,8 +154,6 @@ class HeatmapRenderer {
 
         // 更新地图类型指示器
         this.updateMapTypeIndicator();
-        
-        logger.debug(`地图切换: 语言=${this.mapLanguage}, 样式=${this.mapStyle}`);
     }
 
     /**
@@ -665,14 +664,18 @@ class HeatmapRenderer {
         }
         
         // 防抖处理，避免频繁更新
-        let timeout = null;
         this.updateVisibleHeatmapDebounced = () => {
-            clearTimeout(timeout);
-            timeout = setTimeout(() => {
+            // 清理旧的 timeout
+            if (this.updateVisibleHeatmapTimeout !== null) {
+                clearTimeout(this.updateVisibleHeatmapTimeout);
+            }
+            
+            this.updateVisibleHeatmapTimeout = setTimeout(() => {
                 // 确保地图状态稳定后再更新
                 if (this.map && this.map.getBounds && this.useSpatialIndex) {
                     this.updateVisibleHeatmap();
                 }
+                this.updateVisibleHeatmapTimeout = null; // 执行完成后清空
             }, APP_CONFIG.DELAY.DEBOUNCE_MEDIUM);
         };
         
@@ -795,8 +798,14 @@ class HeatmapRenderer {
 
         return new Promise((resolve, reject) => {
             try {
-                // 再次验证 html2canvas 是否可用
-                if (typeof html2canvas === 'undefined') {
+                // 再次验证 html2canvas 是否可用（检查多种可能的全局变量名）
+                const html2canvasFn = (typeof html2canvas !== 'undefined' && typeof html2canvas === 'function')
+                    ? html2canvas
+                    : (typeof window !== 'undefined' && window.html2canvas && typeof window.html2canvas === 'function')
+                    ? window.html2canvas
+                    : null;
+                
+                if (!html2canvasFn) {
                     reject(new Error('html2canvas 库未加载，无法导出'));
                     return;
                 }
@@ -826,7 +835,7 @@ class HeatmapRenderer {
                             scrollY: 0,
                             windowWidth: mapContainer.offsetWidth,
                             windowHeight: mapContainer.offsetHeight,
-                            imageTimeout: 10000, // 增加图片加载超时，确保瓦片加载完成
+                            imageTimeout: 8000, // 优化：减少图片加载超时时间（从10秒降到8秒）
                             removeContainer: true, // 移除容器，减少处理
                             foreignObjectRendering: false, // 禁用foreignObject，提升速度
                             ignoreElements: (element) => {
@@ -855,14 +864,23 @@ class HeatmapRenderer {
                             scrollY: 0,
                             windowWidth: mapContainer.offsetWidth,
                             windowHeight: mapContainer.offsetHeight,
-                            imageTimeout: 12000, // 增加图片加载超时
-                            foreignObjectRendering: false
+                            imageTimeout: 8000, // 优化：减少图片加载超时时间（从12秒降到8秒）
+                            foreignObjectRendering: false,
+                            ignoreElements: (element) => {
+                                // 忽略不必要的元素，减少处理时间
+                                return element.classList && (
+                                    element.classList.contains('leaflet-control-container') ||
+                                    element.classList.contains('leaflet-control-zoom') ||
+                                    element.classList.contains('api-usage-panel') ||
+                                    element.classList.contains('map-type-indicator')
+                                );
+                            }
                         };
                     }
                 } else {
-                    // PC端：保持原有高质量配置（完全不变）
+                    // PC端：优化配置以提升导出速度
                     scale = 1.0;
-                    timeout = 15000; // 15秒超时（保持不变）
+                    timeout = 15000; // 15秒超时
                     html2canvasOptions = {
                         useCORS: true,
                         allowTaint: true,
@@ -870,7 +888,22 @@ class HeatmapRenderer {
                         scale: scale,
                         logging: false,
                         width: mapContainer.offsetWidth,
-                        height: mapContainer.offsetHeight
+                        height: mapContainer.offsetHeight,
+                        scrollX: 0,
+                        scrollY: 0,
+                        windowWidth: mapContainer.offsetWidth,
+                        windowHeight: mapContainer.offsetHeight,
+                        imageTimeout: 8000, // 8秒图片加载超时（优化：减少等待时间）
+                        foreignObjectRendering: false, // 禁用foreignObject，提升速度
+                        ignoreElements: (element) => {
+                            // 忽略不必要的元素，减少处理时间
+                            return element.classList && (
+                                element.classList.contains('leaflet-control-container') ||
+                                element.classList.contains('leaflet-control-zoom') ||
+                                element.classList.contains('api-usage-panel') ||
+                                element.classList.contains('map-type-indicator')
+                            );
+                        }
                     };
                 }
                 
@@ -890,8 +923,8 @@ class HeatmapRenderer {
                         clonedMapContainer.style.height = mapContainer.offsetHeight + 'px';
                     }
                     
-                    // 移动端快速模式：隐藏不必要的元素
-                    if (isMobile && fastMode) {
+                    // PC端和移动端快速模式：隐藏不必要的元素以提升速度
+                    if (!isMobile || fastMode) {
                         const controls = clonedDoc.querySelectorAll('.leaflet-control-container, .api-usage-panel, .map-type-indicator');
                         controls.forEach(el => {
                             if (el) el.style.display = 'none';
@@ -899,8 +932,9 @@ class HeatmapRenderer {
                     }
                 };
                 
-                // 使用html2canvas截图
-                html2canvas(mapContainer, html2canvasOptions).then(canvas => {
+                // 使用html2canvas截图（使用之前获取的函数引用）
+                // html2canvasFn 已在上面声明，直接使用
+                html2canvasFn(mapContainer, html2canvasOptions).then(canvas => {
                     // 清除超时
                     if (timeoutId) clearTimeout(timeoutId);
                     // 转换为base64（保持高质量，quality=1.0）
@@ -958,8 +992,22 @@ class HeatmapRenderer {
      * @returns {Promise<void>}
      */
     loadHtml2Canvas() {
-        // 如果已经加载，直接返回
-        if (this.html2canvasLoaded && typeof html2canvas !== 'undefined') {
+        // 如果已经加载，直接返回（使用安全的检查方式）
+        const checkLoaded = () => {
+            try {
+                if (typeof window !== 'undefined' && window.html2canvas && typeof window.html2canvas === 'function') {
+                    return true;
+                }
+                if (typeof html2canvas !== 'undefined' && typeof html2canvas === 'function') {
+                    return true;
+                }
+            } catch (e) {
+                return false;
+            }
+            return false;
+        };
+        
+        if (this.html2canvasLoaded && checkLoaded()) {
             return Promise.resolve();
         }
 
@@ -971,8 +1019,25 @@ class HeatmapRenderer {
         // 开始加载
         this.html2canvasLoading = true;
         this.html2canvasLoadPromise = new Promise((resolve, reject) => {
-            // 检查是否已经存在（可能通过其他方式加载）
-            if (typeof html2canvas !== 'undefined') {
+            // 检查是否已经存在（可能通过其他方式加载，使用安全的检查方式）
+            const checkExists = () => {
+                try {
+                    if (typeof window !== 'undefined' && window.html2canvas && typeof window.html2canvas === 'function') {
+                        return window.html2canvas;
+                    }
+                    if (typeof html2canvas !== 'undefined' && typeof html2canvas === 'function') {
+                        return html2canvas;
+                    }
+                } catch (e) {
+                    return null;
+                }
+                return null;
+            };
+            
+            const existingLib = checkExists();
+            if (existingLib) {
+                // 确保设置到 window
+                window.html2canvas = existingLib;
                 this.html2canvasLoaded = true;
                 this.html2canvasLoading = false;
                 resolve();
@@ -995,17 +1060,48 @@ class HeatmapRenderer {
             // 加载成功
             script.onload = () => {
                 clearTimeout(timeoutId);
-                // 验证库是否真的加载成功
-                if (typeof html2canvas !== 'undefined') {
-                    this.html2canvasLoaded = true;
-                    this.html2canvasLoading = false;
-                    logger.info('html2canvas 库加载成功');
-                    resolve();
-                } else {
-                    this.html2canvasLoading = false;
-                    this.html2canvasLoadPromise = null;
-                    reject(new Error('html2canvas 库加载失败：库未正确初始化'));
-                }
+                // 等待库完全初始化，使用轮询检查（最多等待5秒）
+                let attempts = 0;
+                const maxAttempts = 50; // 50 * 100ms = 5秒
+                const checkInterval = setInterval(() => {
+                    attempts++;
+                    // 检查多种可能的全局变量名（使用安全的检查方式）
+                    let html2canvasLib = null;
+                    try {
+                        // 优先检查 window.html2canvas
+                        if (typeof window !== 'undefined' && window.html2canvas && typeof window.html2canvas === 'function') {
+                            html2canvasLib = window.html2canvas;
+                        } else if (typeof html2canvas !== 'undefined' && typeof html2canvas === 'function') {
+                            html2canvasLib = html2canvas;
+                        }
+                    } catch (e) {
+                        // 如果访问抛出错误，继续等待
+                        html2canvasLib = null;
+                    }
+                    
+                    if (html2canvasLib) {
+                        clearInterval(checkInterval);
+                        // 确保全局可用（无论是否已定义，都设置到 window 和全局）
+                        window.html2canvas = html2canvasLib;
+                        // 尝试设置全局变量（如果可能）
+                        try {
+                            if (typeof globalThis !== 'undefined') {
+                                globalThis.html2canvas = html2canvasLib;
+                            }
+                        } catch (e) {
+                            // 忽略错误
+                        }
+                        this.html2canvasLoaded = true;
+                        this.html2canvasLoading = false;
+                        logger.info('html2canvas 库加载成功');
+                        resolve();
+                    } else if (attempts >= maxAttempts) {
+                        clearInterval(checkInterval);
+                        this.html2canvasLoading = false;
+                        this.html2canvasLoadPromise = null;
+                        reject(new Error('html2canvas 库加载失败：库未正确初始化（超时）'));
+                    }
+                }, 100);
             };
 
             // 加载失败
@@ -1206,10 +1302,8 @@ class HeatmapRenderer {
         } catch (error) {
             // 用户取消分享不算错误
             if (error.name === 'AbortError') {
-                logger.debug('用户取消了分享');
                 return true; // 用户主动取消，视为成功
             }
-            logger.debug('Web Share API失败，使用备用方案:', error);
         }
         return false;
     }

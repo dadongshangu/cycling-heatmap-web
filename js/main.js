@@ -484,6 +484,45 @@ class CyclingHeatmapApp {
     }
 
     /**
+     * 验证文件大小
+     * @param {FileList|Array} files - 文件列表
+     * @returns {Object} 验证结果 { validFiles, oversizedFiles, error }
+     */
+    validateFileSizes(files) {
+        const MAX_FILE_SIZE = APP_CONFIG.FILE_SIZE.MAX_SINGLE;
+        const MAX_TOTAL_SIZE = APP_CONFIG.FILE_SIZE.MAX_TOTAL;
+        const validFiles = [];
+        const oversizedFiles = [];
+        
+        // 验证单个文件大小
+        files.forEach(file => {
+            if (file.size > MAX_FILE_SIZE) {
+                oversizedFiles.push({
+                    name: file.name,
+                    size: (file.size / (1024 * 1024)).toFixed(2) + ' MB'
+                });
+            } else {
+                validFiles.push(file);
+            }
+        });
+        
+        // 验证总大小
+        let error = null;
+        if (validFiles.length > 0) {
+            const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+            if (totalSize > MAX_TOTAL_SIZE) {
+                error = `文件总大小超过限制（${(MAX_TOTAL_SIZE / (1024 * 1024)).toFixed(0)}MB），请分批上传`;
+            }
+        }
+        
+        return {
+            validFiles,
+            oversizedFiles,
+            error
+        };
+    }
+
+    /**
      * 处理文件选择
      */
     async handleFileSelect(e) {
@@ -554,48 +593,29 @@ class CyclingHeatmapApp {
             return;
         }
 
-        // 文件大小验证
-        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 单个文件最大50MB
-        const MAX_TOTAL_SIZE = 200 * 1024 * 1024; // 总大小最大200MB
-        const validFiles = [];
-        const oversizedFiles = [];
+        // 文件大小验证（使用统一的方法）
+        const validation = this.validateFileSizes(files);
         
-        // 验证单个文件大小
-        files.forEach(file => {
-            if (file.size > MAX_FILE_SIZE) {
-                oversizedFiles.push({
-                    name: file.name,
-                    size: (file.size / (1024 * 1024)).toFixed(2) + ' MB'
-                });
-            } else {
-                validFiles.push(file);
-            }
-        });
-        
-        // 验证总大小
-        if (validFiles.length > 0) {
-            const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
-            if (totalSize > MAX_TOTAL_SIZE) {
-                this.showMessage(
-                    `文件总大小超过限制（${(MAX_TOTAL_SIZE / (1024 * 1024)).toFixed(0)}MB），请分批上传`,
-                    'error'
-                );
-                return;
-            }
+        if (validation.error) {
+            this.showMessage(validation.error, 'error');
+            return;
         }
         
-        if (oversizedFiles.length > 0) {
-            const fileList = oversizedFiles.map(f => `${f.name} (${f.size})`).join(', ');
+        if (validation.oversizedFiles.length > 0) {
+            const fileList = validation.oversizedFiles.map(f => `${f.name} (${f.size})`).join(', ');
+            const maxSizeMB = (APP_CONFIG.FILE_SIZE.MAX_SINGLE / (1024 * 1024)).toFixed(0);
             this.showMessage(
-                `${oversizedFiles.length} 个文件超过大小限制（50MB）：${fileList}。已跳过这些文件。`,
+                `${validation.oversizedFiles.length} 个文件超过大小限制（${maxSizeMB}MB）：${fileList}。已跳过这些文件。`,
                 'warning'
             );
         }
         
-        if (validFiles.length === 0) {
+        if (validation.validFiles.length === 0) {
             this.showMessage('没有有效的文件可以处理', 'error');
             return;
         }
+        
+        const validFiles = validation.validFiles;
 
         // 记录开始时间，用于估算剩余时间
         this.startTime = Date.now();
@@ -1152,22 +1172,19 @@ class CyclingHeatmapApp {
                 if (tracks.length > 1) {
                     const progressText = `正在处理轨迹 ${trackIndex + 1}/${tracks.length}...`;
                     this.showLoading(true, progressText);
-                    logger.debug(progressText);
                 }
                 
-                // 根据日期范围过滤当前轨迹的点
-                const filteredTrackPoints = track.points
-                    .filter(point => {
-                        if (cutoffTime === null) return true;
-                        if (point.timestamp && point.timestamp >= cutoffTime) return true;
-                        if (!point.timestamp) return true; // 没有时间戳的点包含在内
-                        return false;
-                    })
-                    .map(point => [point.lat, point.lon]);
-                
-                // 记录当前轨迹的点数，用于调试
-                if (filteredTrackPoints.length > 0) {
-                    logger.debug(`轨迹 ${trackIndex + 1}: ${filteredTrackPoints.length} 个点`);
+                // 根据日期范围过滤当前轨迹的点（合并 filter 和 map，减少中间数组）
+                const filteredTrackPoints = [];
+                for (let j = 0; j < track.points.length; j++) {
+                    const point = track.points[j];
+                    // 日期过滤逻辑
+                    if (cutoffTime === null || 
+                        (point.timestamp && point.timestamp >= cutoffTime) || 
+                        !point.timestamp) {
+                        // 同时进行映射
+                        filteredTrackPoints.push([point.lat, point.lon]);
+                    }
                 }
                 
                 if (filteredTrackPoints.length > 0) {
@@ -1182,7 +1199,6 @@ class CyclingHeatmapApp {
                         // 如果点数超过配额，直接进行快速均匀采样
                         if (filteredTrackPoints.length > 10000) {
                             // 如果点数超过10000，使用更激进的采样策略
-                            logger.debug(`轨迹 ${trackIndex + 1}: 点数 ${filteredTrackPoints.length} 过多，使用快速采样`);
                             sampledPoints = this.quickSample(filteredTrackPoints, trackMaxPoints);
                         } else {
                             // 使用智能采样（但限制Douglas-Peucker的尝试次数）
@@ -1201,7 +1217,7 @@ class CyclingHeatmapApp {
                         let avgDistance = 0;
                         for (let i = 0; i < sampledPoints.length - 1; i++) {
                             // 使用GPXParser的haversineDistance方法
-                            const dist = this.gpxParser.haversineDistance(
+                            const dist = GeoUtils.haversineDistance(
                                 sampledPoints[i][0], sampledPoints[i][1],
                                 sampledPoints[i + 1][0], sampledPoints[i + 1][1]
                             ) * 1000; // 转为米
@@ -1211,17 +1227,11 @@ class CyclingHeatmapApp {
                         
                         // 如果平均距离较大（> 50米），进行插值（降低阈值，填充更多稀疏区域）
                         if (avgDistance > 50) {
-                            logger.debug(`轨迹 ${trackIndex + 1}: 平均相邻点距离=${avgDistance.toFixed(0)}米，进行插值填充`);
                             // 使用较小的插值阈值，填充稀疏区域
                             // 将米转换为度：1度约等于111公里，所以1米约等于0.000009度
                             const interpolationThreshold = Math.min(avgDistance * 0.000009, 0.0008); // 约90米
                             interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], interpolationThreshold);
-                            logger.debug(`轨迹 ${trackIndex + 1}: 插值后点数 ${interpolatedPoints.length}`);
-                        } else {
-                            logger.debug(`轨迹 ${trackIndex + 1}: 平均相邻点距离=${avgDistance.toFixed(0)}米，点已足够密集，跳过插值`);
                         }
-                    } else {
-                        logger.debug(`轨迹 ${trackIndex + 1}: 采样后点数 ${sampledPoints.length}，跳过插值`);
                     }
                     
                     // 将当前轨迹段的点添加到最终数组
@@ -1280,18 +1290,8 @@ class CyclingHeatmapApp {
      * @returns {number} 距离（米）
      */
     calculateDistance(point1, point2) {
-        const R = 6371000; // 地球半径（米）
-        const lat1 = point1[0] * Math.PI / 180;
-        const lat2 = point2[0] * Math.PI / 180;
-        const deltaLat = (point2[0] - point1[0]) * Math.PI / 180;
-        const deltaLon = (point2[1] - point1[1]) * Math.PI / 180;
-        
-        const a = Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-                  Math.cos(lat1) * Math.cos(lat2) *
-                  Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        
-        return R * c;
+        // 使用 GeoUtils.haversineDistance（返回公里），转换为米
+        return GeoUtils.haversineDistance(point1[0], point1[1], point2[0], point2[1]) * 1000;
     }
 
     /**
@@ -1307,10 +1307,9 @@ class CyclingHeatmapApp {
         
         if (dx === 0 && dy === 0) {
             // 起点和终点相同，计算到点的距离
-            return Math.sqrt(
-                Math.pow(point[1] - lineStart[1], 2) +
-                Math.pow(point[0] - lineStart[0], 2)
-            );
+            const diffX = point[1] - lineStart[1];
+            const diffY = point[0] - lineStart[0];
+            return Math.sqrt(diffX * diffX + diffY * diffY);
         }
         
         // 计算点到直线的距离
@@ -1608,11 +1607,32 @@ class CyclingHeatmapApp {
             // 检测是否为移动设备（复用heatmapRenderer的方法）
             const isMobile = this.heatmapRenderer.isMobileDevice();
             
-            // 检查 html2canvas 是否已加载，如果未加载则显示加载提示
-            if (!this.heatmapRenderer.html2canvasLoaded) {
+            // 检查 html2canvas 是否已加载，如果未加载则尝试加载
+            const checkHtml2Canvas = () => {
+                try {
+                    // 先检查 window.html2canvas（更安全）
+                    if (typeof window !== 'undefined' && window.html2canvas && typeof window.html2canvas === 'function') {
+                        return true;
+                    }
+                    // 再检查全局 html2canvas（可能抛出错误，所以用 try-catch）
+                    if (typeof html2canvas !== 'undefined' && typeof html2canvas === 'function') {
+                        return true;
+                    }
+                } catch (e) {
+                    // 如果访问 html2canvas 抛出错误，说明未定义
+                    return false;
+                }
+                return false;
+            };
+            
+            if (!this.heatmapRenderer.html2canvasLoaded || !checkHtml2Canvas()) {
                 this.showLoading(true, '正在加载导出功能...');
                 try {
                     await this.heatmapRenderer.loadHtml2Canvas();
+                    // 加载后再次验证
+                    if (!checkHtml2Canvas()) {
+                        throw new Error('html2canvas is not defined');
+                    }
                 } catch (loadError) {
                     this.showLoading(false);
                     const errorMsg = loadError.message || '未知错误';
@@ -1628,16 +1648,29 @@ class CyclingHeatmapApp {
             // PC端：完全使用原有逻辑（保持不变）
             if (!isMobile) {
                 this.showLoading(true, '正在导出热力图...');
-                await new Promise(resolve => setTimeout(resolve, APP_CONFIG.DELAY.EXPORT_RETRY));
+                // 减少延迟时间，从500ms降到200ms，提升响应速度
+                await new Promise(resolve => setTimeout(resolve, 200));
                 
                 const totalTimeout = 20000;
-                const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, false);
-                const timeoutPromise = new Promise((_, reject) => {
-                    setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
-                });
-                
-                await Promise.race([exportPromise, timeoutPromise]);
-                this.showMessage('热力图导出成功！', 'success');
+                try {
+                    const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, false);
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
+                    });
+                    
+                    await Promise.race([exportPromise, timeoutPromise]);
+                    this.showLoading(false);
+                    this.showMessage('热力图导出成功！', 'success');
+                } catch (exportError) {
+                    this.showLoading(false);
+                    const errorMsg = exportError.message || '未知错误';
+                    if (errorMsg === 'EXPORT_TIMEOUT') {
+                        this.showMessage('导出超时，请稍后重试或使用截屏功能', 'error');
+                    } else {
+                        this.showMessage('导出失败: ' + errorMsg, 'error');
+                    }
+                    logger.error('导出失败:', exportError);
+                }
                 return;
             }
             
@@ -1655,32 +1688,59 @@ class CyclingHeatmapApp {
             // 生成高质量图片（scale=1.0，不使用fastMode）
             this.showLoading(true, '正在导出热力图（高质量）...');
             const totalTimeout = 25000; // 移动端高质量导出可能需要更长时间
-            const exportPromise = this.heatmapRenderer.exportMapAsImage(false, 0);
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
-            });
-            
-            const dataURL = await Promise.race([exportPromise, timeoutPromise]);
+            let dataURL;
+            try {
+                const exportPromise = this.heatmapRenderer.exportMapAsImage(false, 0);
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => reject(new Error('EXPORT_TIMEOUT')), totalTimeout);
+                });
+                
+                dataURL = await Promise.race([exportPromise, timeoutPromise]);
+            } catch (exportError) {
+                this.showLoading(false);
+                const errorMsg = exportError.message || '未知错误';
+                if (errorMsg === 'EXPORT_TIMEOUT') {
+                    this.showMessage('导出超时，请稍后重试或使用截屏功能', 'error');
+                } else {
+                    this.showMessage('导出失败: ' + errorMsg, 'error');
+                }
+                logger.error('导出失败:', exportError);
+                this.showScreenshotGuide();
+                return;
+            }
             
             // 尝试Web Share API（优先）
             this.showLoading(true, '正在准备分享...');
-            const shared = await this.heatmapRenderer.shareImageWithWebShare(dataURL, filename);
-            
-            if (shared) {
-                this.showMessage('热力图已分享，请选择保存到相册', 'success');
-                return;
+            try {
+                const shared = await this.heatmapRenderer.shareImageWithWebShare(dataURL, filename);
+                
+                if (shared) {
+                    this.showLoading(false);
+                    this.showMessage('热力图已分享，请选择保存到相册', 'success');
+                    return;
+                }
+            } catch (shareError) {
+                logger.warn('Web Share API失败，降级到下载:', shareError);
             }
             
             // Web Share API不支持或失败，降级到下载
             this.showLoading(true, '正在保存图片...');
             try {
                 this.heatmapRenderer.downloadImage(dataURL, filename);
+                this.showLoading(false);
                 this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
             } catch (downloadError) {
                 // 下载也失败，显示模态框
                 logger.warn('下载失败，显示图片模态框:', downloadError);
-                this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
-                this.showMessage('图片已显示，请长按保存', 'success');
+                try {
+                    this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
+                    this.showLoading(false);
+                    this.showMessage('图片已显示，请长按保存', 'success');
+                } catch (modalError) {
+                    this.showLoading(false);
+                    this.showMessage('导出失败，请使用截屏功能', 'error');
+                    this.showScreenshotGuide();
+                }
             }
             
         } catch (error) {
@@ -1846,8 +1906,6 @@ class CyclingHeatmapApp {
                 }, 300);
             }
         }, 3000);
-        
-        logger.debug(`[${type.toUpperCase()}] ${message}`);
     }
 
     /**
@@ -1978,7 +2036,7 @@ class CyclingHeatmapApp {
      */
     showInputBookmarklet() {
         // 输入式书签代码（不包含密钥，点击后弹出输入框）
-        const inputBookmarkletCode = `javascript:(function(){const key=prompt('请输入天地图API密钥：','');if(key&&key.trim()){if(typeof MAP_CONFIG!=='undefined'){MAP_CONFIG.setApiKey(key.trim());alert('✅ API密钥已设置！\\n\\n页面将自动刷新以应用更改。');location.reload();}else{localStorage.setItem('tianditu_api_key',key.trim());alert('✅ API密钥已保存！\\n\\n请刷新页面。');location.reload();}}else if(key!==null){alert('❌ 密钥不能为空');}})();`;
+        const inputBookmarkletCode = `javascript:(function(){const key=prompt('请输入天地图API密钥：','');if(key&&key.trim()){if(typeof MAP_CONFIG!=='undefined'&&MAP_CONFIG.setApiKey){MAP_CONFIG.setApiKey(key.trim());alert('✅ API密钥已设置！\\n\\n页面将自动刷新以应用更改。');location.reload();}else{localStorage.setItem('tianditu_api_key',key.trim());alert('✅ API密钥已保存！\\n\\n请刷新页面。');location.reload();}}else if(key!==null){alert('❌ 密钥不能为空');}})();`;
 
         // 创建临时模态框显示书签
         const modal = document.createElement('div');
@@ -2069,26 +2127,22 @@ class CyclingHeatmapApp {
 
 // 帮助模态框相关函数
 function showHelp() {
-    logger.debug('showHelp() called - showing help modal');
     const modal = domCache.getElement('helpModal');
     if (modal) modal.style.display = 'flex';
 }
 
 function closeHelp() {
-    logger.debug('closeHelp() called - closing help modal');
     const modal = domCache.getElement('helpModal');
     if (modal) modal.style.display = 'none';
 }
 
 // GPX指南模态框相关函数
 function showGpxGuide() {
-    logger.debug('showGpxGuide() called - showing GPX guide modal');
     const modal = domCache.getElement('gpxGuideModal');
     if (modal) modal.style.display = 'flex';
 }
 
 function closeGpxGuide() {
-    logger.debug('closeGpxGuide() called - closing GPX guide modal');
     const modal = domCache.getElement('gpxGuideModal');
     if (modal) modal.style.display = 'none';
 }
@@ -2141,13 +2195,11 @@ function filterGuide() {
 
 // 捐赠模态框相关函数
 function showDonate() {
-    logger.debug('showDonate() called - showing donate modal');
     const modal = domCache.getElement('donateModal');
     if (modal) modal.style.display = 'flex';
 }
 
 function closeDonate() {
-    logger.debug('closeDonate() called - closing donate modal');
     const modal = domCache.getElement('donateModal');
     if (modal) modal.style.display = 'none';
 }

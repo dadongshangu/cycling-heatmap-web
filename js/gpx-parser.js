@@ -116,9 +116,9 @@ class GPXParser {
             const routePoints = xmlDoc.querySelectorAll('rtept');
             const wayPoints = xmlDoc.querySelectorAll('wpt');
             
-            if (routePoints.length > 0) {
+            if (ArrayUtils.isNotEmpty(routePoints)) {
                 this.processPoints(routePoints, points, trackDates);
-            } else if (wayPoints.length > 0) {
+            } else if (ArrayUtils.isNotEmpty(wayPoints)) {
                 this.processPoints(wayPoints, points, trackDates);
             } else {
                 throw new Error('未找到有效的GPS轨迹点');
@@ -134,10 +134,16 @@ class GPXParser {
         this.totalPoints += points.length;
         this.totalDistance += trackDistance;
         
-        // 更新日期范围
-        if (trackDates.length > 0) {
-            const minDate = new Date(Math.min(...trackDates));
-            const maxDate = new Date(Math.max(...trackDates));
+        // 更新日期范围（使用循环避免栈溢出）
+        if (ArrayUtils.isNotEmpty(trackDates)) {
+            let minTimestamp = trackDates[0];
+            let maxTimestamp = trackDates[0];
+            for (let i = 1; i < trackDates.length; i++) {
+                if (trackDates[i] < minTimestamp) minTimestamp = trackDates[i];
+                if (trackDates[i] > maxTimestamp) maxTimestamp = trackDates[i];
+            }
+            const minDate = new Date(minTimestamp);
+            const maxDate = new Date(maxTimestamp);
             
             if (!this.dateRange.min || minDate < this.dateRange.min) {
                 this.dateRange.min = minDate;
@@ -169,7 +175,7 @@ class GPXParser {
             
             // 使用TypeChecker验证坐标有效性
             if (!TypeChecker.isValidCoordinate(lat, lon)) {
-                console.warn(`Invalid coordinate: lat=${lat}, lon=${lon}`);
+                logger.warn(`Invalid coordinate: lat=${lat}, lon=${lon}`);
                 return; // 跳过无效坐标
             }
 
@@ -221,7 +227,7 @@ class GPXParser {
             const prev = points[i - 1];
             const curr = points[i];
             
-            const distance = this.haversineDistance(
+            const distance = GeoUtils.haversineDistance(
                 prev.lat, prev.lon,
                 curr.lat, curr.lon
             );
@@ -232,36 +238,6 @@ class GPXParser {
         return totalDistance;
     }
 
-    /**
-     * Haversine距离计算公式
-     * @param {number} lat1 - 纬度1
-     * @param {number} lon1 - 经度1
-     * @param {number} lat2 - 纬度2
-     * @param {number} lon2 - 经度2
-     * @returns {number} 距离（公里）
-     */
-    haversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // 地球半径（公里）
-        const dLat = this.toRadians(lat2 - lat1);
-        const dLon = this.toRadians(lon2 - lon1);
-        
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        
-        return R * c;
-    }
-
-    /**
-     * 角度转弧度
-     * @param {number} degrees - 角度
-     * @returns {number} 弧度
-     */
-    toRadians(degrees) {
-        return degrees * (Math.PI / 180);
-    }
 
     /**
      * 批量解析多个GPX文件
@@ -307,7 +283,7 @@ class GPXParser {
                 }
                 
             } catch (error) {
-                console.error(`解析文件 ${file.name} 失败:`, error);
+                logger.error(`解析文件 ${file.name} 失败:`, error);
                 
                 // 添加错误结果
                 results.push({

@@ -924,10 +924,8 @@
     <!-- html2canvas 已改为延迟加载，仅在需要导出时加载 -->
     <script src="js/utils.js"></script>
     <script src="js/map-config.js"></script>
-    <!-- fit-file-parser 库（本地文件，需要先下载到 js/ 目录） -->
-    <!-- 如果库文件不存在，FITParser 会显示错误提示 -->
-    <script src="js/fit-file-parser.min.js" 
-            onerror="console.warn('fit-file-parser 库未找到，请参考 FIT_LIBRARY_SETUP.md 下载库文件')"></script>
+    <!-- fit-file-parser 库（可选，如果文件不存在会自动降级到手动解析） -->
+    <script src="js/fit-file-parser.min.js" defer></script>
     <script src="js/gpx-parser.js"></script>
     <script src="js/fit-parser.js"></script>
     <script src="js/heatmap-renderer.js"></script>

@@ -1,9 +1,74 @@
 /**
  * FIT Parser - 解析FIT文件并提取轨迹点
  * 使用 fit-file-parser 库进行解析，只提取必要的GPS信息
+ * 如果库不可用，则使用内置的手动解析器作为降级方案
  */
-
 class FITParser {
+    // 离群点过滤阈值（米）
+    static OUTLIER_THRESHOLDS = {
+        FIRST_ITERATION: 1000000,  // 1000公里 - 第一次迭代的最小阈值
+        SUBSEQUENT: 500000,        // 500公里 - 后续迭代的最小阈值
+        MINIMUM: 500000,           // 500公里 - 绝对最小阈值
+        EXTREME_ADJACENT: 1000000  // 1000公里 - 相邻点极端距离阈值
+    };
+    
+    // 坐标格式检测阈值
+    static COORDINATE_THRESHOLDS = {
+        SEMICIRCLES_MIN: 1000,      // semicircles格式的最小值
+        DEGREES_MAX_LAT: 90,        // 纬度的最大度数
+        DEGREES_MAX_LON: 180,       // 经度的最大度数
+        DEGREES_MIN: 0.1,           // 度数格式的最小值
+        INVALID_SMALL: 10,          // 无效坐标的小值阈值
+        INVALID_TINY: 1,            // 无效坐标的极小值阈值
+        ORIGIN_NEAR: 0.001          // 接近原点的阈值
+    };
+    
+    // 坐标格式分析阈值
+    static FORMAT_ANALYSIS = {
+        SAMPLE_SIZE: 50,            // 采样分析的点数
+        MIN_SAMPLES: 3,             // 最小有效样本数
+        SEMICIRCLES_RATIO: 0.3,     // semicircles格式的最小比率
+        DEGREES_RATIO: 0.8,         // degrees格式的最小比率
+        SEMICIRCLES_MULTIPLIER: 1.5, // semicircles计数的倍数阈值
+        DEGREES_MULTIPLIER: 2,      // degrees计数的倍数阈值
+        ADJACENT_DISTANCE_MAX: 1000 // 相邻点距离的最大值（米）
+    };
+    
+    // 离群点过滤参数
+    static OUTLIER_FILTERING = {
+        MAX_ITERATIONS: 3,          // 最大迭代次数
+        THRESHOLD_MULTIPLIER_FIRST: 2.5,  // 第一次迭代的阈值乘数
+        THRESHOLD_MULTIPLIER_SUBSEQUENT: 3, // 后续迭代的阈值乘数
+        ADJACENT_DISTANCE_MULTIPLIER: 5,   // 相邻点距离的倍数
+        MIN_ADJACENT_DISTANCE: 5000,       // 最小相邻点距离（米）
+        CHECK_ENDPOINTS_RATIO: 0.01        // 检查端点比例（1%）
+    };
+    
+    // 坐标转换精度
+    static PRECISION = {
+        DEGREES_DECIMALS: 6,        // 度数的小数位数
+        INTERPOLATION_THRESHOLD: 0.0008,  // 插值阈值（度）
+        METERS_TO_DEGREES: 0.000009 // 米转度的系数（约1米 = 0.000009度）
+    };
+    
+    // 比率阈值
+    static RATIO_THRESHOLDS = {
+        INTERPOLATION_POINTS: 0.7,  // 插值触发点数比率
+        DEGREES_MIN: 0.2,           // degrees格式的最小比率
+        SEMICIRCLES_MIN: 0.5        // semicircles格式的最小比率
+    };
+    
+    // 时间戳相关常量
+    static TIMESTAMP = {
+        MILLISECONDS_THRESHOLD: 1e12,  // 毫秒时间戳阈值（用于判断是毫秒还是秒）
+        MAX_SAFE_TIMESTAMP: Number.MAX_SAFE_INTEGER  // 最大安全时间戳
+    };
+    
+    // 性能优化阈值
+    static PERFORMANCE = {
+        FOR_LOOP_THRESHOLD: 1000  // 超过此数量使用传统 for 循环
+    };
+    
     constructor() {
         this.tracks = [];
         this.totalPoints = 0;
@@ -14,7 +79,11 @@ class FITParser {
         this.fitFileParserAvailable = this.checkFitFileParserLibrary();
         
         if (!this.fitFileParserAvailable) {
-            logger.warn('fit-file-parser 库未加载，将使用手动解析（可能不够准确）。请参考 FIT_LIBRARY_SETUP.md 下载库文件。');
+            // 只在首次检测时显示警告，避免重复提示
+            if (!window._fitParserLibWarningShown) {
+                window._fitParserLibWarningShown = true;
+                logger.warn('fit-file-parser 库未加载，将使用手动解析（可能不够准确）。请参考 FIT_LIBRARY_SETUP.md 下载库文件。');
+            }
         }
         
         // 预计算 semicircles 转度的常量（降级方案使用）
@@ -23,44 +92,63 @@ class FITParser {
     }
     
     /**
+     * 获取 FitParser 构造函数（内部方法，统一检查逻辑）
+     * @returns {Function|null} FitParser 构造函数或 null
+     */
+    getFitParser() {
+        // 尝试多种可能的全局变量名（使用 try-catch 避免 ReferenceError）
+        const candidates = [
+            () => {
+                try {
+                    return (typeof FitParser !== 'undefined' && typeof FitParser === 'function') ? FitParser : null;
+                } catch (e) {
+                    return null;
+                }
+            },
+            () => {
+                try {
+                    return (typeof FitFileParser !== 'undefined' && typeof FitFileParser === 'function') ? FitFileParser : null;
+                } catch (e) {
+                    return null;
+                }
+            },
+            () => {
+                try {
+                    return (typeof window !== 'undefined' && window.FitParser && typeof window.FitParser === 'function') ? window.FitParser : null;
+                } catch (e) {
+                    return null;
+                }
+            },
+            () => {
+                try {
+                    return (typeof window !== 'undefined' && window.FitFileParser && typeof window.FitFileParser === 'function') ? window.FitFileParser : null;
+                } catch (e) {
+                    return null;
+                }
+            }
+        ];
+        
+        for (const candidate of candidates) {
+            try {
+                const result = candidate();
+                if (result) {
+                    return result;
+                }
+            } catch (e) {
+                // 忽略错误，继续尝试下一个候选
+                continue;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
      * 检测 fit-file-parser 库是否可用
      * @returns {boolean} 库是否可用
      */
     checkFitFileParserLibrary() {
-        // 尝试多种可能的全局变量名
-        if (typeof FitParser !== 'undefined' && typeof FitParser === 'function') {
-            return true;
-        }
-        if (typeof FitFileParser !== 'undefined' && typeof FitFileParser === 'function') {
-            return true;
-        }
-        if (typeof window !== 'undefined' && window.FitParser && typeof window.FitParser === 'function') {
-            return true;
-        }
-        if (typeof window !== 'undefined' && window.FitFileParser && typeof window.FitFileParser === 'function') {
-            return true;
-        }
-        return false;
-    }
-    
-    /**
-     * 获取 FitParser 构造函数
-     * @returns {Function|null} FitParser 构造函数或 null
-     */
-    getFitParser() {
-        if (typeof FitParser !== 'undefined' && typeof FitParser === 'function') {
-            return FitParser;
-        }
-        if (typeof FitFileParser !== 'undefined' && typeof FitFileParser === 'function') {
-            return FitFileParser;
-        }
-        if (typeof window !== 'undefined' && window.FitParser && typeof window.FitParser === 'function') {
-            return window.FitParser;
-        }
-        if (typeof window !== 'undefined' && window.FitFileParser && typeof window.FitFileParser === 'function') {
-            return window.FitFileParser;
-        }
-        return null;
+        return this.getFitParser() !== null;
     }
 
     /**
@@ -478,7 +566,12 @@ class FITParser {
      */
     analyzeCoordinateFormat(samples) {
         if (samples.length === 0) {
-            return { isSemicircles: true, maxAdjacentDistance: 5000, avgAdjacentDistance: 100, validRatio: 0 };
+            return { 
+                isSemicircles: true, 
+                maxAdjacentDistance: FITParser.OUTLIER_FILTERING.MIN_ADJACENT_DISTANCE, 
+                avgAdjacentDistance: 100, 
+                validRatio: 0 
+            };
         }
 
         // 尝试两种格式，计算相邻点距离
@@ -493,18 +586,23 @@ class FITParser {
 
             // 跳过明显无效的数据（值太小）
             // 注意：不能设置太高的阈值，避免误判有效的semicircles值
-            if (absLat < 10 && absLon < 10) {
+            if (absLat < FITParser.COORDINATE_THRESHOLDS.INVALID_SMALL && absLon < FITParser.COORDINATE_THRESHOLDS.INVALID_SMALL) {
                 return; // 跳过这个采样点
             }
 
             // 格式1：作为度数（如果值在合理范围内）
             // 但需要更严格的判断：值必须在 -90 到 90 和 -180 到 180 范围内
             // 并且不能太小（< 1），因为semicircles转换后的值也可能在这个范围内
-            if (absLat <= 90 && absLon <= 180 && absLat >= 1 && absLon >= 1) {
+            if (absLat <= FITParser.COORDINATE_THRESHOLDS.DEGREES_MAX_LAT && 
+                absLon <= FITParser.COORDINATE_THRESHOLDS.DEGREES_MAX_LON && 
+                absLat >= FITParser.COORDINATE_THRESHOLDS.INVALID_TINY && 
+                absLon >= FITParser.COORDINATE_THRESHOLDS.INVALID_TINY) {
                 const lat = latValue;
                 const lon = lonValue;
                 // 额外检查：不能接近原点
-                if (TypeChecker.isValidCoordinate(lat, lon) && Math.abs(lat) >= 0.001 && Math.abs(lon) >= 0.001) {
+                if (TypeChecker.isValidCoordinate(lat, lon) && 
+                    Math.abs(lat) >= FITParser.COORDINATE_THRESHOLDS.ORIGIN_NEAR && 
+                    Math.abs(lon) >= FITParser.COORDINATE_THRESHOLDS.ORIGIN_NEAR) {
                     degreesResults.push({ lat, lon, raw: sample });
                 }
             }
@@ -513,7 +611,9 @@ class FITParser {
             const lat = this.semicirclesToDegrees(latValue);
             const lon = this.semicirclesToDegrees(lonValue);
             // 额外检查：不能接近原点
-            if (TypeChecker.isValidCoordinate(lat, lon) && Math.abs(lat) >= 0.001 && Math.abs(lon) >= 0.001) {
+            if (TypeChecker.isValidCoordinate(lat, lon) && 
+                Math.abs(lat) >= FITParser.COORDINATE_THRESHOLDS.ORIGIN_NEAR && 
+                Math.abs(lon) >= FITParser.COORDINATE_THRESHOLDS.ORIGIN_NEAR) {
                 semicirclesResults.push({ lat, lon, raw: sample });
             }
         });
@@ -526,9 +626,10 @@ class FITParser {
         // 如果semicircles格式的有效点明显更多（至少是degrees的2倍），使用semicircles
         // 或者如果degrees格式的有效点很少（< 20%），使用semicircles
         let useSemicircles = false;
-        if (semicirclesResults.length > degreesResults.length * 2) {
+        if (semicirclesResults.length > degreesResults.length * FITParser.FORMAT_ANALYSIS.DEGREES_MULTIPLIER) {
             useSemicircles = true;
-        } else if (degreesRatio < 0.2 && semicirclesRatio > 0.5) {
+        } else if (degreesRatio < FITParser.RATIO_THRESHOLDS.DEGREES_MIN && 
+                   semicirclesRatio > FITParser.RATIO_THRESHOLDS.SEMICIRCLES_MIN) {
             useSemicircles = true;
         } else if (degreesResults.length === 0 && semicirclesResults.length > 0) {
             useSemicircles = true;
@@ -538,7 +639,8 @@ class FITParser {
             const semicirclesStats = this.calculateAdjacentDistanceStats(semicirclesResults);
             
             // 如果semicircles格式的相邻点平均距离更小（更合理），使用semicircles
-            if (semicirclesStats.avgDistance < degreesStats.avgDistance && semicirclesStats.avgDistance < 1000) {
+            if (semicirclesStats.avgDistance < degreesStats.avgDistance && 
+                semicirclesStats.avgDistance < FITParser.FORMAT_ANALYSIS.ADJACENT_DISTANCE_MAX) {
                 useSemicircles = true;
             }
         }
@@ -575,7 +677,7 @@ class FITParser {
         // 计算相邻点之间的距离
         const distances = [];
         for (let i = 0; i < points.length - 1; i++) {
-            const dist = this.haversineDistance(
+            const dist = GeoUtils.haversineDistance(
                 points[i].lat, points[i].lon,
                 points[i + 1].lat, points[i + 1].lon
             ) * 1000; // 转为米
@@ -584,7 +686,8 @@ class FITParser {
 
         // 计算平均距离和最大距离
         const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
-        const maxAdjacentDistance = Math.max(...distances);
+        // 使用 reduce 避免展开运算符导致栈溢出
+        const maxAdjacentDistance = distances.reduce((max, dist) => dist > max ? dist : max, 0);
 
         return {
             avgDistance,
@@ -593,79 +696,72 @@ class FITParser {
     }
 
     /**
-     * 从解析后的FIT数据中提取轨迹点
-     * @param {Object} fitData - FIT解析后的数据
-     * @param {string} filename - 文件名
-     * @returns {Object} 提取结果
+     * 收集原始坐标值（提前过滤明显无效的数据）
+     * @param {Array} records - FIT记录数组
+     * @returns {Array} 原始坐标数组 [{lat, lon, record}]
      */
-    extractTrackPoints(fitData, filename) {
-        const points = [];
-        let trackDistance = 0;
-        let trackDates = [];
-
-        // FIT 文件中的记录在 records 数组中
-        if (!fitData.records || !Array.isArray(fitData.records)) {
-            throw new Error('FIT文件中未找到有效的轨迹记录');
-        }
-
-        // 第一步：收集所有原始坐标值
-        // 需要更智能地过滤无效的GPS坐标
+    collectRawCoordinates(records) {
         const rawCoordinates = [];
-        fitData.records.forEach(record => {
+        records.forEach(record => {
             if (record.position_lat !== undefined && record.position_long !== undefined) {
                 const absLat = Math.abs(record.position_lat);
                 const absLon = Math.abs(record.position_long);
                 
-                // 过滤明显无效的坐标对：
-                // 1. 值为0或null（已经在上面检查了undefined）
+                // 过滤明显无效的坐标对
                 if (record.position_lat === 0 && record.position_long === 0) {
                     return; // 跳过(0,0)坐标
                 }
                 
-                // 2. 经度太小（< 10）但纬度看起来像semicircles（> 100），可能是无效数据
-                // 例如：(4492341, 1), (1651364, 1) 等
-                if (absLon < 10 && absLon > 0 && absLat > 100) {
-                    // 跳过明显无效的坐标对（经度太小但纬度像semicircles）
+                // 经度太小但纬度看起来像semicircles，可能是无效数据
+                if (absLon < FITParser.COORDINATE_THRESHOLDS.INVALID_SMALL && 
+                    absLon > 0 && 
+                    absLat > 100) {
                     return; // 跳过明显无效的坐标对
                 }
                 
-                // 保留所有其他值，让后续处理来判断
                 rawCoordinates.push({
                     lat: record.position_lat,
                     lon: record.position_long,
-                    record: record // 保存原始记录以便后续使用
+                    record: record
                 });
             }
         });
+        return rawCoordinates;
+    }
 
-        if (rawCoordinates.length === 0) {
-            throw new Error('FIT文件中未找到有效的GPS坐标');
+    /**
+     * 确定坐标格式（semicircles 或 degrees）
+     * @param {Array} rawCoordinates - 原始坐标数组
+     * @returns {Object} 格式分析结果
+     */
+    determineCoordinateFormat(rawCoordinates) {
+        // 参数验证
+        if (!Array.isArray(rawCoordinates) || rawCoordinates.length === 0) {
+            logger.warn('determineCoordinateFormat: rawCoordinates 参数无效，返回默认格式');
+            return { 
+                isSemicircles: true, 
+                maxAdjacentDistance: FITParser.OUTLIER_FILTERING.MIN_ADJACENT_DISTANCE, 
+                avgAdjacentDistance: 100, 
+                validRatio: 0 
+            };
         }
-
-        // 第二步：采样分析（使用前50个点或所有点，取较小值）
-        const sampleSize = Math.min(50, rawCoordinates.length);
+        
+        const sampleSize = Math.min(FITParser.FORMAT_ANALYSIS.SAMPLE_SIZE, rawCoordinates.length);
         const samples = rawCoordinates.slice(0, sampleSize);
         
-        // 先检查原始值的范围，判断是否可能是semicircles
-        // FIT文件格式标准：GPS坐标总是以semicircles格式存储
-        // 但某些库或转换工具可能会输出度数格式，所以需要兼容两种格式
-        
-        // 过滤明显无效的坐标对（如经度为1或非常小的值）
+        // 过滤明显无效的坐标对
         const validSamples = samples.filter(sample => {
             const absLat = Math.abs(sample.lat);
             const absLon = Math.abs(sample.lon);
-            // 过滤掉明显无效的坐标：
-            // 1. 经度为1或非常小的值（如1, 2, 3等），这些不是有效的GPS坐标
-            // 2. 但保留所有可能的有效值，让后续的格式判断来处理
-            if (absLon < 10 && absLon > 0 && absLat > 100) {
-                // 经度太小但纬度看起来像semicircles，可能是无效数据
+            if (absLon < FITParser.COORDINATE_THRESHOLDS.INVALID_SMALL && 
+                absLon > 0 && 
+                absLat > 100) {
                 return false;
             }
             return true;
         });
         
-        // 如果过滤后样本太少，使用原始样本
-        const analysisSamples = validSamples.length >= 3 ? validSamples : samples;
+        const analysisSamples = validSamples.length >= FITParser.FORMAT_ANALYSIS.MIN_SAMPLES ? validSamples : samples;
         
         let likelySemicircles = false;
         let semicirclesCount = 0;
@@ -674,29 +770,29 @@ class FITParser {
         analysisSamples.forEach(sample => {
             const absLat = Math.abs(sample.lat);
             const absLon = Math.abs(sample.lon);
-            // 如果值 > 1000，很可能是semicircles（FIT标准格式）
-            if (absLat > 1000 || absLon > 1000) {
+            if (absLat > FITParser.COORDINATE_THRESHOLDS.SEMICIRCLES_MIN || 
+                absLon > FITParser.COORDINATE_THRESHOLDS.SEMICIRCLES_MIN) {
                 semicirclesCount++;
-            } else if (absLat <= 90 && absLon <= 180 && absLat >= 0.1 && absLon >= 0.1) {
-                // 值在度数范围内，且不是太小（避免误判接近0的semicircles值）
+            } else if (absLat <= FITParser.COORDINATE_THRESHOLDS.DEGREES_MAX_LAT && 
+                       absLon <= FITParser.COORDINATE_THRESHOLDS.DEGREES_MAX_LON && 
+                       absLat >= FITParser.COORDINATE_THRESHOLDS.DEGREES_MIN && 
+                       absLon >= FITParser.COORDINATE_THRESHOLDS.DEGREES_MIN) {
                 degreesCount++;
             }
         });
         
-        // 更保守的策略：如果大部分值都 > 1000，或者semicircles特征明显，直接使用semicircles格式
-        // 这样可以避免误判，因为FIT标准格式就是semicircles
-        if (semicirclesCount > 0 && (semicirclesCount > degreesCount * 1.5 || semicirclesCount > analysisSamples.length * 0.3)) {
+        if (semicirclesCount > 0 && 
+            (semicirclesCount > degreesCount * FITParser.FORMAT_ANALYSIS.SEMICIRCLES_MULTIPLIER || 
+             semicirclesCount > analysisSamples.length * FITParser.FORMAT_ANALYSIS.SEMICIRCLES_RATIO)) {
             likelySemicircles = true;
-        } else if (semicirclesCount === 0 && degreesCount > analysisSamples.length * 0.8) {
+        } else if (semicirclesCount === 0 && 
+                   degreesCount > analysisSamples.length * FITParser.FORMAT_ANALYSIS.DEGREES_RATIO) {
             // 只有在完全没有semicircles特征，且大部分值都在度数范围内时，才考虑使用度数格式
         } else {
-            // 默认使用semicircles格式（FIT标准）
-            likelySemicircles = true;
+            likelySemicircles = true; // 默认使用semicircles格式（FIT标准）
         }
         
-        let formatAnalysis;
         if (likelySemicircles) {
-            // 直接使用semicircles格式，计算统计信息
             const semicirclesResults = [];
             samples.forEach(sample => {
                 const lat = this.semicirclesToDegrees(sample.lat);
@@ -706,51 +802,58 @@ class FITParser {
                 }
             });
             const stats = this.calculateAdjacentDistanceStats(semicirclesResults);
-            formatAnalysis = {
+            return {
                 isSemicircles: true,
                 maxAdjacentDistance: stats.maxAdjacentDistance,
                 avgAdjacentDistance: stats.avgDistance,
                 validRatio: semicirclesResults.length / samples.length
             };
         } else {
-            // 尝试两种转换方式，找出哪种格式产生的点更集中
-            formatAnalysis = this.analyzeCoordinateFormat(samples);
+            return this.analyzeCoordinateFormat(samples);
+        }
+    }
+
+    /**
+     * 转换坐标（根据格式分析结果）
+     * @param {Array} rawCoordinates - 原始坐标数组
+     * @param {Object} formatAnalysis - 格式分析结果
+     * @returns {Array} 转换后的点数组
+     */
+    convertCoordinates(rawCoordinates, formatAnalysis) {
+        // 参数验证
+        if (!Array.isArray(rawCoordinates) || !formatAnalysis) {
+            logger.warn('convertCoordinates: 无效的参数');
+            return [];
         }
         
-        // 第三步：使用确定的格式处理所有点，并基于相邻点距离剔除离群点
-        const maxSamples = 10; // 记录前10个点的详细信息用于调试
-        const debugSamples = []; // 存储调试信息
-        
-        // 先转换所有点，然后基于相邻点距离过滤
         const convertedPoints = [];
-        const maxAdjacentDistance = Math.max(formatAnalysis.maxAdjacentDistance * 5, 5000); // 允许的最大相邻点距离（米），5倍平均距离或至少5公里
+        const length = rawCoordinates.length;
         
+        // 对于大数据集（>1000项），使用传统 for 循环以获得更好性能
+        const useForLoop = length > FITParser.PERFORMANCE.FOR_LOOP_THRESHOLD;
         
-        // 第一步：转换所有点
-        rawCoordinates.forEach((coord, index) => {
+        // 处理单个坐标的通用逻辑（提取为内部函数避免重复）
+        const processCoordinate = (coord, index) => {
+            if (!coord) return null;
+            
             const record = coord.record;
             const latValue = coord.lat;
             const lonValue = coord.lon;
-            
-            // 预检查：过滤明显无效的数据
-            // 注意：某些设备可能使用非标准格式，所以阈值要宽松
+            // 缓存 Math.abs 计算结果，避免重复计算
             const absLat = Math.abs(latValue);
             const absLon = Math.abs(lonValue);
             
-            // 过滤明显无效的坐标对：
-            // 1. 值为0（已经在收集时过滤了）
-            // 2. 经度太小（< 10）但纬度看起来像semicircles（> 100），可能是无效数据
-            // 3. 值太小（< 1）且是正数，可能是无效数据
-            // 但保留负数，因为某些semicircles值可能是负数
-            if (absLat < 1 && absLon < 1 && latValue >= 0 && lonValue >= 0) {
-                // 跳过明显无效的坐标点（值太小）
-                return; // 跳过明显无效的坐标
+            // 预检查：过滤明显无效的数据
+            if (absLat < FITParser.COORDINATE_THRESHOLDS.INVALID_TINY && 
+                absLon < FITParser.COORDINATE_THRESHOLDS.INVALID_TINY && 
+                latValue >= 0 && lonValue >= 0) {
+                return null; // 跳过明显无效的坐标
             }
             
-            // 如果经度太小（< 10）但纬度看起来像semicircles（> 100），很可能是无效数据
-            if (absLon < 10 && absLon > 0 && absLat > 100) {
-                // 跳过明显无效的坐标点（经度太小但纬度像semicircles）
-                return; // 跳过明显无效的坐标
+            if (absLon < FITParser.COORDINATE_THRESHOLDS.INVALID_SMALL && 
+                absLon > 0 && 
+                absLat > 100) {
+                return null; // 跳过明显无效的坐标
             }
             
             let lat, lon;
@@ -760,9 +863,8 @@ class FITParser {
                 lat = this.semicirclesToDegrees(latValue);
                 lon = this.semicirclesToDegrees(lonValue);
             } else {
-                // 如果判断为度数格式，但值不在合理范围内，尝试作为semicircles转换
-                if (absLat > 90 || absLon > 180) {
-                    // 值超出度数范围，尝试semicircles转换
+                if (absLat > FITParser.COORDINATE_THRESHOLDS.DEGREES_MAX_LAT || 
+                    absLon > FITParser.COORDINATE_THRESHOLDS.DEGREES_MAX_LON) {
                     lat = this.semicirclesToDegrees(latValue);
                     lon = this.semicirclesToDegrees(lonValue);
                 } else {
@@ -773,43 +875,47 @@ class FITParser {
             
             // 验证转换后的坐标有效性
             if (!TypeChecker.isValidCoordinate(lat, lon)) {
-                // 跳过无效坐标点
-                return; // 跳过无效坐标
+                return null; // 跳过无效坐标
             }
             
             // 额外检查：如果转换后的坐标接近 (0, 0)，很可能是无效数据
-            if (Math.abs(lat) < 0.001 && Math.abs(lon) < 0.001) {
-                // 跳过接近原点的坐标点
-                return; // 跳过接近原点的坐标
+            // 缓存 Math.abs 结果，避免重复计算
+            const absLatConverted = Math.abs(lat);
+            const absLonConverted = Math.abs(lon);
+            if (absLatConverted < FITParser.COORDINATE_THRESHOLDS.ORIGIN_NEAR && 
+                absLonConverted < FITParser.COORDINATE_THRESHOLDS.ORIGIN_NEAR) {
+                return null; // 跳过接近原点的坐标
             }
             
             // 提取时间戳
             let timestamp = null;
-            if (record.timestamp) {
+            if (record && record.timestamp) {
                 let dateObj;
                 if (record.timestamp instanceof Date) {
                     dateObj = record.timestamp;
                 } else if (typeof record.timestamp === 'string') {
                     dateObj = new Date(record.timestamp);
                 } else if (typeof record.timestamp === 'number') {
-                    dateObj = new Date(record.timestamp > 1e12 ? record.timestamp : record.timestamp * 1000);
+                    // 判断是毫秒时间戳还是秒时间戳
+                    dateObj = new Date(record.timestamp > FITParser.TIMESTAMP.MILLISECONDS_THRESHOLD 
+                        ? record.timestamp 
+                        : record.timestamp * 1000);
                 }
-
                 if (dateObj && TypeChecker.isValidDate(dateObj)) {
                     timestamp = dateObj.getTime();
                 }
             }
-
+            
             // 提取海拔信息（可选）
             let elevation = null;
-            if (record.altitude !== undefined && record.altitude !== null) {
+            if (record && record.altitude !== undefined && record.altitude !== null) {
                 const altValue = parseFloat(record.altitude);
                 if (TypeChecker.isNumber(altValue)) {
                     elevation = altValue;
                 }
             }
             
-            convertedPoints.push({
+            return {
                 lat,
                 lon,
                 timestamp,
@@ -817,25 +923,50 @@ class FITParser {
                 rawIndex: index,
                 rawLat: latValue,
                 rawLon: lonValue
+            };
+        };
+        
+        if (useForLoop) {
+            // 大数据集：使用传统 for 循环
+            for (let index = 0; index < length; index++) {
+                const coord = rawCoordinates[index];
+                const result = processCoordinate(coord, index);
+                if (result) {
+                    convertedPoints.push(result);
+                }
+            }
+        } else {
+            // 小数据集：使用 forEach，代码更简洁
+            rawCoordinates.forEach((coord, index) => {
+                const result = processCoordinate(coord, index);
+                if (result) {
+                    convertedPoints.push(result);
+                }
             });
-        });
-        
-        if (convertedPoints.length === 0) {
-            throw new Error('FIT文件中未找到有效的GPS轨迹点');
         }
         
-        // 第二步：基于相邻点距离和中心位置过滤异常点
-        const validIndices = new Set(); // 记录有效点的索引
-        
-        // 先标记所有点
-        for (let i = 0; i < convertedPoints.length; i++) {
-            validIndices.add(i);
+        return convertedPoints;
+    }
+
+    /**
+     * 过滤全局离群点（基于中心位置）
+     * @param {Array} convertedPoints - 转换后的点数组
+     * @param {Set} validIndices - 有效点索引集合
+     * @returns {number} 移除的离群点数量
+     */
+    filterGlobalOutliers(convertedPoints, validIndices) {
+        // 参数验证
+        if (!Array.isArray(convertedPoints) || convertedPoints.length === 0) {
+            logger.warn('filterGlobalOutliers: convertedPoints 参数无效');
+            return 0;
+        }
+        if (!(validIndices instanceof Set)) {
+            logger.warn('filterGlobalOutliers: validIndices 参数不是 Set 类型');
+            return 0;
         }
         
-        // 第一步：迭代式全局异常点检测 - 更严格地过滤跨洲异常点
-        // 使用迭代方法：先过滤明显异常点，重新计算中心，再过滤
         let iteration = 0;
-        const maxIterations = 3;
+        const maxIterations = FITParser.OUTLIER_FILTERING.MAX_ITERATIONS;
         let totalOutliersRemoved = 0;
         
         while (iteration < maxIterations) {
@@ -857,36 +988,46 @@ class FITParser {
             centerLat /= validCount;
             centerLon /= validCount;
             
-            // 计算所有点到中心的距离
+            // 计算所有点到中心的距离（合并遍历，减少中间数组）
+            let sumDistance = 0;
+            let count = 0;
             const distancesToCenter = [];
+            
             for (let i = 0; i < convertedPoints.length; i++) {
                 if (validIndices.has(i)) {
-                    const dist = this.haversineDistance(
+                    const dist = GeoUtils.haversineDistance(
                         centerLat, centerLon,
                         convertedPoints[i].lat, convertedPoints[i].lon
                     ) * 1000; // 转为米
                     distancesToCenter.push({ index: i, distance: dist });
+                    sumDistance += dist;
+                    count++;
                 }
             }
             
-            if (distancesToCenter.length === 0) break;
+            if (distancesToCenter.length === 0 || count === 0) break;
             
-            // 计算距离的统计信息
-            const distances = distancesToCenter.map(d => d.distance);
-            const avgDistance = distances.reduce((a, b) => a + b, 0) / distances.length;
-            const variance = distances.reduce((sum, d) => sum + Math.pow(d - avgDistance, 2), 0) / distances.length;
+            // 计算距离的统计信息（避免创建中间数组）
+            // 明确检查 count > 0，防止除零错误
+            if (count <= 0) break;
+            
+            const avgDistance = sumDistance / count;
+            let varianceSum = 0;
+            for (const item of distancesToCenter) {
+                varianceSum += Math.pow(item.distance - avgDistance, 2);
+            }
+            const variance = varianceSum / count;
             const stdDistance = Math.sqrt(variance);
             
-            // 更严格的阈值：只过滤跨洲的异常点
-            // 第一次迭代使用更严格的阈值，后续迭代放宽
-            // 但阈值不能太小，避免删除正常的轨迹点
-            const thresholdMultiplier = iteration === 0 ? 2.5 : 3;
-            const minThreshold = iteration === 0 ? 1000000 : 500000; // 第一次至少1000公里，后续500公里
+            // 计算阈值
+            const thresholdMultiplier = iteration === 0 
+                ? FITParser.OUTLIER_FILTERING.THRESHOLD_MULTIPLIER_FIRST 
+                : FITParser.OUTLIER_FILTERING.THRESHOLD_MULTIPLIER_SUBSEQUENT;
+            const minThreshold = iteration === 0 
+                ? FITParser.OUTLIER_THRESHOLDS.FIRST_ITERATION 
+                : FITParser.OUTLIER_THRESHOLDS.SUBSEQUENT;
             const globalOutlierThreshold = Math.max(stdDistance * thresholdMultiplier, minThreshold);
-            
-            // 额外保护：如果阈值太小（小于500公里），使用更大的阈值
-            // 这样可以避免删除正常的轨迹点
-            const finalThreshold = Math.max(globalOutlierThreshold, 500000); // 至少500公里
+            const finalThreshold = Math.max(globalOutlierThreshold, FITParser.OUTLIER_THRESHOLDS.MINIMUM);
             
             // 过滤异常点
             let outliersRemovedThisIteration = 0;
@@ -900,101 +1041,98 @@ class FITParser {
             }
             
             if (outliersRemovedThisIteration === 0) {
-                // 没有发现更多异常点，可以提前退出
-                break;
+                break; // 没有发现更多异常点，提前退出
             }
             
             iteration++;
         }
         
+        return totalOutliersRemoved;
+    }
+
+    /**
+     * 过滤相邻点离群点（只检查端点）
+     * @param {Array} convertedPoints - 转换后的点数组
+     * @param {Set} validIndices - 有效点索引集合
+     * @returns {number} 移除的离群点数量
+     */
+    filterAdjacentOutliers(convertedPoints, validIndices) {
+        // 参数验证
+        if (!Array.isArray(convertedPoints) || convertedPoints.length === 0) {
+            logger.warn('filterAdjacentOutliers: convertedPoints 参数无效');
+            return 0;
+        }
+        if (!(validIndices instanceof Set)) {
+            logger.warn('filterAdjacentOutliers: validIndices 参数不是 Set 类型');
+            return 0;
+        }
         
-        // 第二步：基于相邻点距离过滤 - 只过滤明显跨洲的异常点
-        // 几乎不删除相邻点，只删除距离非常大的点（可能是跨洲异常点）
-        // 这样可以保持轨迹的连续性，避免热力图断开
         let adjacentOutliersRemoved = 0;
+        const checkEndPoints = Math.min(3, Math.floor(convertedPoints.length * FITParser.OUTLIER_FILTERING.CHECK_ENDPOINTS_RATIO));
+        const extremeThreshold = FITParser.OUTLIER_THRESHOLDS.EXTREME_ADJACENT;
         
-        // 只检查开头和末尾各3个点，且只删除距离非常大的点（至少1000公里）
-        const checkEndPoints = Math.min(3, Math.floor(convertedPoints.length * 0.01)); // 只检查开头和末尾各1%的点
-        
-        // 检查开头的点（非常保守，只删除跨洲异常点）
+        // 检查开头的点
         for (let i = 0; i < checkEndPoints && i < convertedPoints.length - 1; i++) {
-            if (!validIndices.has(i) || !validIndices.has(i + 1)) continue; // 跳过已标记为无效的点
+            if (!validIndices.has(i) || !validIndices.has(i + 1)) continue;
             
-            const dist = this.haversineDistance(
+            const dist = GeoUtils.haversineDistance(
                 convertedPoints[i].lat, convertedPoints[i].lon,
                 convertedPoints[i + 1].lat, convertedPoints[i + 1].lon
             ) * 1000; // 转为米
             
-            // 只删除距离非常大的点（至少1000公里，可能是跨洲异常点）
-            const extremeThreshold = 1000000; // 1000公里
-            
             if (dist > extremeThreshold) {
-                // 如果距离非常大，判断哪个点是异常点
                 if (i + 2 < convertedPoints.length && validIndices.has(i + 2)) {
-                    const distToNext = this.haversineDistance(
+                    const distToNext = GeoUtils.haversineDistance(
                         convertedPoints[i].lat, convertedPoints[i].lon,
                         convertedPoints[i + 2].lat, convertedPoints[i + 2].lon
                     ) * 1000;
-                    const distFromNext = this.haversineDistance(
+                    const distFromNext = GeoUtils.haversineDistance(
                         convertedPoints[i + 1].lat, convertedPoints[i + 1].lon,
                         convertedPoints[i + 2].lat, convertedPoints[i + 2].lon
                     ) * 1000;
                     
-                    // 只删除距离非常大的点
                     if (distToNext > extremeThreshold && distToNext > distFromNext) {
                         validIndices.delete(i);
                         adjacentOutliersRemoved++;
-                        // 跳过开头跨洲异常点
                     } else if (distFromNext > extremeThreshold && distFromNext > distToNext) {
                         validIndices.delete(i + 1);
                         adjacentOutliersRemoved++;
-                        // 跳过开头跨洲异常点
                     }
                 } else if (dist > extremeThreshold * 2) {
-                    // 只有距离非常大时才删除
                     validIndices.delete(i + 1);
                     adjacentOutliersRemoved++;
-                    // 跳过末尾跨洲异常点
                 }
             }
         }
         
-        // 检查末尾的点（从后往前，非常保守）
+        // 检查末尾的点
         for (let i = convertedPoints.length - 1; i >= convertedPoints.length - checkEndPoints && i > 0; i--) {
-            if (!validIndices.has(i) || !validIndices.has(i - 1)) continue; // 跳过已标记为无效的点
+            if (!validIndices.has(i) || !validIndices.has(i - 1)) continue;
             
-            const dist = this.haversineDistance(
+            const dist = GeoUtils.haversineDistance(
                 convertedPoints[i - 1].lat, convertedPoints[i - 1].lon,
                 convertedPoints[i].lat, convertedPoints[i].lon
             ) * 1000; // 转为米
             
-            // 只删除距离非常大的点（至少1000公里）
-            const extremeThreshold = 1000000; // 1000公里
-            
             if (dist > extremeThreshold) {
-                // 如果距离非常大，判断哪个点是异常点
                 if (i - 2 >= 0 && validIndices.has(i - 2)) {
-                    const distToPrev = this.haversineDistance(
+                    const distToPrev = GeoUtils.haversineDistance(
                         convertedPoints[i].lat, convertedPoints[i].lon,
                         convertedPoints[i - 2].lat, convertedPoints[i - 2].lon
                     ) * 1000;
-                    const distFromPrev = this.haversineDistance(
+                    const distFromPrev = GeoUtils.haversineDistance(
                         convertedPoints[i - 1].lat, convertedPoints[i - 1].lon,
                         convertedPoints[i - 2].lat, convertedPoints[i - 2].lon
                     ) * 1000;
                     
-                    // 只删除距离非常大的点
                     if (distToPrev > extremeThreshold && distToPrev > distFromPrev) {
                         validIndices.delete(i);
                         adjacentOutliersRemoved++;
-                        // 跳过末尾跨洲异常点
                     } else if (distFromPrev > extremeThreshold && distFromPrev > distToPrev) {
                         validIndices.delete(i - 1);
                         adjacentOutliersRemoved++;
-                        // 跳过末尾跨洲异常点
                     }
                 } else if (dist > extremeThreshold * 2) {
-                    // 只有距离非常大时才删除
                     validIndices.delete(i);
                     adjacentOutliersRemoved++;
                     logger.warn(`跳过末尾跨洲异常点 [${i}]: 距离上一个点=${dist.toFixed(0)}米`);
@@ -1002,38 +1140,32 @@ class FITParser {
             }
         }
         
+        return adjacentOutliersRemoved;
+    }
+
+    /**
+     * 构建最终点数组
+     * @param {Array} convertedPoints - 转换后的点数组
+     * @param {Set} validIndices - 有效点索引集合
+     * @returns {Object} {points, trackDates}
+     */
+    buildFinalPoints(convertedPoints, validIndices) {
+        // 参数验证
+        if (!Array.isArray(convertedPoints)) {
+            logger.warn('buildFinalPoints: convertedPoints 参数不是数组');
+            return { points: [], trackDates: [] };
+        }
+        if (!(validIndices instanceof Set)) {
+            logger.warn('buildFinalPoints: validIndices 参数不是 Set 类型');
+            return { points: [], trackDates: [] };
+        }
         
-        // 不再检查中间的点，保持轨迹连续性
+        const points = [];
+        const trackDates = [];
         
-        // 第三步：构建最终的点数组
-        let sampleCount = 0;
         convertedPoints.forEach((point, index) => {
             if (!validIndices.has(index)) {
-                // 记录调试信息（被跳过的点）
-                if (sampleCount < maxSamples) {
-                    debugSamples.push({
-                        index: sampleCount,
-                        rawLat: point.rawLat,
-                        rawLon: point.rawLon,
-                        convertedLat: point.lat,
-                        convertedLon: point.lon,
-                        skipped: true,
-                        skipReason: '相邻点距离过大'
-                    });
-                }
                 return; // 跳过被标记为无效的点
-            }
-            
-            // 记录调试信息
-            if (sampleCount < maxSamples) {
-                debugSamples.push({
-                    index: sampleCount,
-                    rawLat: point.rawLat,
-                    rawLon: point.rawLon,
-                    convertedLat: point.lat,
-                    convertedLon: point.lon,
-                    isSemicircles: formatAnalysis.isSemicircles
-                });
             }
             
             points.push({
@@ -1046,16 +1178,57 @@ class FITParser {
             if (point.timestamp) {
                 trackDates.push(point.timestamp);
             }
-            
-            sampleCount++;
         });
+        
+        return { points, trackDates };
+    }
 
-        if (points.length === 0) {
+    /**
+     * 从解析后的FIT数据中提取轨迹点
+     * @param {Object} fitData - FIT解析后的数据
+     * @param {string} filename - 文件名
+     * @returns {Object} 提取结果
+     */
+    extractTrackPoints(fitData, filename) {
+        // FIT 文件中的记录在 records 数组中
+        if (!fitData.records || !Array.isArray(fitData.records)) {
+            throw new Error('FIT文件中未找到有效的轨迹记录');
+        }
+
+        // 第一步：收集原始坐标（提前过滤明显无效的数据）
+        const rawCoordinates = this.collectRawCoordinates(fitData.records);
+        if (rawCoordinates.length === 0) {
+            throw new Error('FIT文件中未找到有效的GPS坐标');
+        }
+
+        // 第二步：确定坐标格式
+        const formatAnalysis = this.determineCoordinateFormat(rawCoordinates);
+        
+        // 第三步：转换所有坐标
+        const convertedPoints = this.convertCoordinates(rawCoordinates, formatAnalysis);
+        if (ArrayUtils.isEmpty(convertedPoints)) {
+            throw new Error('FIT文件中未找到有效的GPS轨迹点');
+        }
+        
+        // 第四步：过滤离群点
+        // 使用 Array.from 优化 Set 初始化
+        const validIndices = new Set(Array.from({length: convertedPoints.length}, (_, i) => i));
+        
+        // 过滤全局离群点
+        this.filterGlobalOutliers(convertedPoints, validIndices);
+        
+        // 过滤相邻点离群点
+        this.filterAdjacentOutliers(convertedPoints, validIndices);
+        
+        // 第五步：构建最终点数组
+        const { points, trackDates } = this.buildFinalPoints(convertedPoints, validIndices);
+
+        if (ArrayUtils.isEmpty(points)) {
             throw new Error('FIT文件中未找到有效的GPS轨迹点');
         }
 
         // 计算轨迹距离
-        trackDistance = this.calculateDistance(points);
+        const trackDistance = this.calculateDistance(points);
 
         // 更新统计信息
         this.totalPoints += points.length;
@@ -1087,11 +1260,6 @@ class FITParser {
             distance: trackDistance,
             dates: trackDates
         };
-        
-        // 将调试信息附加到结果中（用于测试工具）
-        if (debugSamples.length > 0) {
-            result.debugSamples = debugSamples;
-        }
         
         return result;
     }
@@ -1143,7 +1311,7 @@ class FITParser {
             const prev = points[i - 1];
             const curr = points[i];
             
-            const distance = this.haversineDistance(
+            const distance = GeoUtils.haversineDistance(
                 prev.lat, prev.lon,
                 curr.lat, curr.lon
             );
@@ -1154,36 +1322,6 @@ class FITParser {
         return totalDistance;
     }
 
-    /**
-     * Haversine距离计算公式
-     * @param {number} lat1 - 纬度1
-     * @param {number} lon1 - 经度1
-     * @param {number} lat2 - 纬度2
-     * @param {number} lon2 - 经度2
-     * @returns {number} 距离（公里）
-     */
-    haversineDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371; // 地球半径（公里）
-        const dLat = this.toRadians(lat2 - lat1);
-        const dLon = this.toRadians(lon2 - lon1);
-        
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        
-        return R * c;
-    }
-
-    /**
-     * 角度转弧度
-     * @param {number} degrees - 角度
-     * @returns {number} 弧度
-     */
-    toRadians(degrees) {
-        return degrees * (Math.PI / 180);
-    }
 
     /**
      * 批量解析多个FIT文件

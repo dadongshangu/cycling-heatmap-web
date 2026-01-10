@@ -228,6 +228,88 @@ class ErrorHandler {
 }
 
 /**
+ * 地理工具类 - 提供地理坐标相关的计算方法
+ */
+class GeoUtils {
+    /**
+     * Haversine距离计算公式
+     * @param {number} lat1 - 纬度1
+     * @param {number} lon1 - 经度1
+     * @param {number} lat2 - 纬度2
+     * @param {number} lon2 - 经度2
+     * @returns {number} 距离（公里）
+     */
+    static haversineDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // 地球半径（公里）
+        const dLat = GeoUtils.toRadians(lat2 - lat1);
+        const dLon = GeoUtils.toRadians(lon2 - lon1);
+        
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(GeoUtils.toRadians(lat1)) * Math.cos(GeoUtils.toRadians(lat2)) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        
+        return R * c;
+    }
+
+    /**
+     * 角度转弧度
+     * @param {number} degrees - 角度
+     * @returns {number} 弧度
+     */
+    static toRadians(degrees) {
+        return degrees * (Math.PI / 180);
+    }
+}
+
+/**
+ * 工具函数集合 - 提供常用的工具方法
+ */
+class Utils {
+    /**
+     * 检查值是否已定义（不是 undefined）
+     * @param {*} value - 要检查的值
+     * @returns {boolean} 是否已定义
+     */
+    static isDefined(value) {
+        return typeof value !== 'undefined';
+    }
+    
+    /**
+     * 检查值是否为函数
+     * @param {*} value - 要检查的值
+     * @returns {boolean} 是否为函数
+     */
+    static isFunction(value) {
+        return typeof value === 'function';
+    }
+}
+
+/**
+ * 数组工具类 - 提供数组相关的工具方法
+ */
+class ArrayUtils {
+    /**
+     * 检查数组是否为空
+     * @param {Array} arr - 要检查的数组
+     * @returns {boolean} 数组是否为空
+     */
+    static isEmpty(arr) {
+        return !Array.isArray(arr) || arr.length === 0;
+    }
+    
+    /**
+     * 检查数组是否非空
+     * @param {Array} arr - 要检查的数组
+     * @returns {boolean} 数组是否非空
+     */
+    static isNotEmpty(arr) {
+        return Array.isArray(arr) && arr.length > 0;
+    }
+}
+
+/**
  * 配置常量 - 统一管理所有配置值
  */
 const APP_CONFIG = {
@@ -277,4 +359,7 @@ window.logger = logger;
 window.DOMCache = DOMCache;
 window.domCache = domCache;
 window.ErrorHandler = ErrorHandler;
+window.GeoUtils = GeoUtils;
+window.Utils = Utils;
+window.ArrayUtils = ArrayUtils;
 window.APP_CONFIG = APP_CONFIG;
