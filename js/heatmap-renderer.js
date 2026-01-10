@@ -492,17 +492,26 @@ class HeatmapRenderer {
         const currentZoom = this.map.getZoom();
         
         // 根据缩放级别动态调整热力图参数
+        // 低缩放级别时减小半径和模糊，避免过度糊在一起
         let dynamicRadius = this.heatmapOptions.radius;
         let dynamicBlur = this.heatmapOptions.blur;
 
-        if (currentZoom > 15) {
-            // 高缩放级别时，减小半径和模糊
-            dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.8);
-            dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.8);
+        if (currentZoom < 8) {
+            // 极低缩放级别：显著减小半径和模糊，让线条更细
+            dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.5);
+            dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.6);
         } else if (currentZoom < 10) {
-            // 低缩放级别时，增大半径和模糊
-            dynamicRadius = this.heatmapOptions.radius * 1.5;
-            dynamicBlur = this.heatmapOptions.blur * 1.5;
+            // 低缩放级别：适度减小半径和模糊
+            dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.7);
+            dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.8);
+        } else if (currentZoom > 15) {
+            // 高缩放级别：稍微减小，保持细节
+            dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.9);
+            dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.9);
+        } else {
+            // 中等缩放级别（10-15）：使用原始参数
+            dynamicRadius = this.heatmapOptions.radius;
+            dynamicBlur = this.heatmapOptions.blur;
         }
 
         // 更新热力图选项
