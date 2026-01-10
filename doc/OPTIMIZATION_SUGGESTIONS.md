@@ -681,35 +681,43 @@ class SpatialIndex {
 
 ### 14. 缩放级别优化 ✅ **已完成**
 
-**建议：**
-```javascript
-// 保存和加载配置
-saveSettings() {
-    const settings = {
-        mapStyle: document.getElementById('mapStyle').value,
-        mapLanguage: document.getElementById('mapLanguage').value,
-        radius: document.getElementById('radius').value,
-        blur: document.getElementById('blur').value,
-        opacity: document.getElementById('opacity').value,
-        dateRange: document.getElementById('dateRange').value
-    };
-    
-    localStorage.setItem('heatmap_settings', JSON.stringify(settings));
-}
+**已实现：**
+- ✅ **动态线条粗细调整** - 根据地图缩放级别自动调整热力图半径和模糊度
+- ✅ **低缩放优化** - 缩略地图时自动减小线条粗细，避免过度糊在一起
+- ✅ **平滑过渡** - 多个缩放级别区间，实现平滑的视觉效果
 
-loadSettings() {
-    const saved = localStorage.getItem('heatmap_settings');
-    if (saved) {
-        const settings = JSON.parse(saved);
-        document.getElementById('mapStyle').value = settings.mapStyle || 'dark';
-        document.getElementById('mapLanguage').value = settings.mapLanguage || 'en';
-        document.getElementById('radius').value = settings.radius || 1;
-        document.getElementById('blur').value = settings.blur || 1;
-        document.getElementById('opacity').value = settings.opacity || 0.8;
-        document.getElementById('dateRange').value = settings.dateRange || 365;
+**实现细节：**
+```javascript
+// 在 heatmap-renderer.js 中的 updateHeatmapZoom 方法
+updateHeatmapZoom() {
+    const currentZoom = this.map.getZoom();
+    
+    if (currentZoom < 8) {
+        // 极低缩放级别：显著减小半径和模糊，让线条更细
+        dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.5);
+        dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.6);
+    } else if (currentZoom < 10) {
+        // 低缩放级别：适度减小半径和模糊
+        dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.7);
+        dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.8);
+    } else if (currentZoom > 15) {
+        // 高缩放级别：稍微减小，保持细节
+        dynamicRadius = Math.max(1, this.heatmapOptions.radius * 0.9);
+        dynamicBlur = Math.max(1, this.heatmapOptions.blur * 0.9);
+    } else {
+        // 中等缩放级别（10-15）：使用原始参数
+        dynamicRadius = this.heatmapOptions.radius;
+        dynamicBlur = this.heatmapOptions.blur;
     }
+    
+    this.heatLayer.setOptions({ radius: dynamicRadius, blur: dynamicBlur });
 }
 ```
+
+**效果：**
+- 低缩放级别时线条更细，不会过度糊在一起
+- 保持线条的连续性和可读性
+- 在不同缩放级别之间平滑过渡
 
 ---
 
