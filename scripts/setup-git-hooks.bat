@@ -15,8 +15,8 @@ if not exist ".git\hooks" (
     mkdir ".git\hooks"
 )
 
-REM 复制pre-commit hook
-copy /Y "scripts\pre-commit-fast-test.bat" ".git\hooks\pre-commit" >nul 2>&1
+REM 复制pre-commit hook（使用Node.js脚本）
+copy /Y "scripts\pre-commit-hook.js" ".git\hooks\pre-commit" >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo ✅ Pre-commit hook 已安装
 ) else (
@@ -24,8 +24,8 @@ if %ERRORLEVEL% EQU 0 (
     exit /b 1
 )
 
-REM 复制pre-push hook
-copy /Y "scripts\pre-push-full-test.bat" ".git\hooks\pre-push" >nul 2>&1
+REM 复制pre-push hook（使用Node.js脚本）
+copy /Y "scripts\pre-push-hook.js" ".git\hooks\pre-push" >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo ✅ Pre-push hook 已安装
 ) else (
