@@ -546,15 +546,26 @@ class HeatmapRenderer {
             try {
                 const mapContainer = this.map.getContainer();
                 
+                // 移动端使用更高的scale以提高质量，但不要太高以免内存问题
+                const isMobile = this.isMobileDevice();
+                const scale = isMobile ? 2 : 1;
+                
                 // 使用html2canvas截图
                 html2canvas(mapContainer, {
                     useCORS: true,
                     allowTaint: true,
                     backgroundColor: null,
-                    scale: 1,
+                    scale: scale,
                     logging: false,
                     width: mapContainer.offsetWidth,
                     height: mapContainer.offsetHeight,
+                    // 移动端优化选项
+                    ...(isMobile ? {
+                        scrollX: 0,
+                        scrollY: 0,
+                        windowWidth: mapContainer.offsetWidth,
+                        windowHeight: mapContainer.offsetHeight
+                    } : {}),
                     onclone: (clonedDoc) => {
                         // 确保克隆的文档中的样式正确
                         const clonedMapContainer = clonedDoc.querySelector('#map');
@@ -569,7 +580,12 @@ class HeatmapRenderer {
                     resolve(dataURL);
                 }).catch(error => {
                     console.error('导出地图失败:', error);
-                    reject(error);
+                    // 如果是移动端，提供更友好的错误提示
+                    if (isMobile) {
+                        reject(new Error('移动端导出可能受限，请尝试在桌面浏览器中使用，或长按地图区域截图保存'));
+                    } else {
+                        reject(error);
+                    }
                 });
                 
             } catch (error) {
@@ -580,18 +596,168 @@ class HeatmapRenderer {
     }
 
     /**
+     * 检测是否为移动设备
+     * @returns {boolean}
+     */
+    isMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+               (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+    }
+
+    /**
+     * 检测是否为iOS设备
+     * @returns {boolean}
+     */
+    isIOSDevice() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    /**
+     * 生成图片查看页面的HTML
+     * @param {string} dataURL - Base64图片数据
+     * @param {string} filename - 文件名
+     * @param {string} hintText - 提示文字
+     * @returns {string} HTML字符串
+     */
+    generateImageViewerHTML(dataURL, filename, hintText = '长按图片保存到相册') {
+        return `
+            <html>
+                <head>
+                    <title>${filename}</title>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            margin: 0;
+                            padding: 20px;
+                            background: #000;
+                            display: flex;
+                            justify-content: center;
+                            align-items: center;
+                            min-height: 100vh;
+                        }
+                        img {
+                            max-width: 100%;
+                            height: auto;
+                            border-radius: 8px;
+                        }
+                        .hint {
+                            position: fixed;
+                            bottom: 20px;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            background: rgba(0,0,0,0.8);
+                            color: white;
+                            padding: 10px 20px;
+                            border-radius: 20px;
+                            font-size: 14px;
+                            text-align: center;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <img src="${dataURL}" alt="${filename}">
+                    <div class="hint">${hintText}</div>
+                </body>
+            </html>
+        `;
+    }
+
+    /**
+     * 在新窗口中打开图片
+     * @param {string} dataURL - Base64图片数据
+     * @param {string} filename - 文件名
+     * @param {string} hintText - 提示文字
+     * @returns {boolean} 是否成功打开
+     */
+    openImageInNewWindow(dataURL, filename, hintText = '长按图片保存到相册') {
+        try {
+            const newWindow = window.open('', '_blank');
+            if (newWindow) {
+                newWindow.document.write(this.generateImageViewerHTML(dataURL, filename, hintText));
+                newWindow.document.close();
+                return true;
+            } else {
+                // 弹窗被阻止，尝试在当前窗口显示
+                console.warn('弹窗被阻止，尝试在当前页面显示图片');
+                // 创建一个模态框显示图片
+                const modal = document.createElement('div');
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(0,0,0,0.9);
+                    z-index: 10000;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    flex-direction: column;
+                    padding: 20px;
+                `;
+                modal.innerHTML = `
+                    <img src="${dataURL}" alt="${filename}" style="max-width: 100%; height: auto; border-radius: 8px;">
+                    <div style="color: white; margin-top: 20px; text-align: center; padding: 10px 20px; background: rgba(0,0,0,0.8); border-radius: 20px;">
+                        ${hintText}
+                    </div>
+                    <button onclick="this.parentElement.remove()" style="margin-top: 20px; padding: 10px 20px; background: #17a2b8; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        关闭
+                    </button>
+                `;
+                document.body.appendChild(modal);
+                return true;
+            }
+        } catch (error) {
+            console.error('打开图片窗口失败:', error);
+            return false;
+        }
+    }
+
+    /**
      * 下载导出的图片
      * @param {string} dataURL - Base64图片数据
      * @param {string} filename - 文件名
      */
     downloadImage(dataURL, filename = 'cycling-heatmap.png') {
         try {
-            // 创建下载链接
+            // 移动端特殊处理
+            if (this.isMobileDevice()) {
+                // iOS设备：打开新窗口显示图片，让用户长按保存
+                if (this.isIOSDevice()) {
+                    if (this.openImageInNewWindow(dataURL, filename, '长按图片保存到相册')) {
+                        return;
+                    } else {
+                        throw new Error('无法打开图片窗口，请检查浏览器弹窗设置');
+                    }
+                }
+                
+                // Android或其他移动设备：尝试下载，如果失败则打开新窗口
+                try {
+                    const link = document.createElement('a');
+                    link.download = filename;
+                    link.href = dataURL;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    console.log('✓ 图片下载成功:', filename);
+                    return;
+                } catch (e) {
+                    // 如果下载失败，打开新窗口
+                    console.warn('下载失败，尝试打开新窗口:', e);
+                    if (this.openImageInNewWindow(dataURL, filename, '长按图片保存')) {
+                        return;
+                    } else {
+                        throw new Error('无法下载或显示图片，请检查浏览器设置');
+                    }
+                }
+            }
+            
+            // 桌面端：正常下载
             const link = document.createElement('a');
             link.download = filename;
             link.href = dataURL;
-            
-            // 触发下载
+            link.style.display = 'none';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🚴 骑行热力图 - GPX轨迹生成热力图</title>
+    <title>🚴 运动轨迹热力图生成器 - 支持骑行/徒步/跑步等GPS轨迹热力图生成</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -18,8 +18,8 @@
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>🚴 骑行热力图</h1>
-            <p class="subtitle">GPX轨迹生成热力图</p>
+            <h1>🚴 运动轨迹热力图生成器</h1>
+            <p class="subtitle">支持骑行、徒步、跑步等GPS轨迹热力图生成</p>
         </header>
 
         <!-- Main Content -->
@@ -28,18 +28,18 @@
             <div class="left-panel">
                 <!-- File Upload Area -->
                 <div class="upload-section">
-                    <h3>📁 上传GPX文件</h3>
+                    <h3>📁 上传轨迹记录GPX</h3>
                     <div class="upload-area" id="uploadArea">
                         <div class="upload-content">
                             <div class="upload-icon">📁</div>
-                            <p class="upload-text">拖拽GPX文件到这里</p>
+                            <p class="upload-text">拖拽轨迹记录GPX到这里</p>
                             <p class="upload-subtext">或点击选择文件</p>
                             <input type="file" id="fileInput" multiple accept=".gpx" style="display: none;">
                             <button class="upload-btn" id="selectFileBtn">
                                 选择文件
                             </button>
                             <button class="help-btn" id="gpxGuideBtn" onclick="showGpxGuide()">
-                                📖 如何获取GPX文件？
+                                📖 如何获取轨迹记录GPX？
                             </button>
                         </div>
                     </div>
@@ -67,7 +67,7 @@
                     <button class="generate-btn-large" id="generateBtn" disabled>
                         🗺️ 生成热力图
                     </button>
-                    <p class="generate-hint">上传GPX文件后点击生成</p>
+                    <p class="generate-hint">上传轨迹记录GPX后点击生成</p>
                 </div>
 
                 <!-- Controls Panel -->
@@ -228,7 +228,7 @@
             <div class="help-content">
                 <h3>🚀 快速开始</h3>
                 <ol>
-                    <li>拖拽或选择GPX文件上传</li>
+                    <li>拖拽或选择轨迹记录GPX上传</li>
                     <li>调整参数设置（可选）</li>
                     <li>点击"生成热力图"按钮</li>
                     <li>在地图上查看结果</li>
@@ -245,8 +245,9 @@
 
                 <h3>📁 支持的文件格式</h3>
                 <ul>
-                    <li>GPX文件 (.gpx)</li>
+                    <li>轨迹记录GPX (.gpx)</li>
                     <li>支持批量上传多个文件</li>
+                    <li>支持骑行、徒步、跑步等所有GPS轨迹</li>
                 </ul>
 
                 <h3>🎨 Strava风格</h3>
@@ -259,7 +260,7 @@
     <div class="modal" id="gpxGuideModal" style="display: none;">
         <div class="modal-content large-modal">
             <span class="close" onclick="closeGpxGuide()">&times;</span>
-            <h2>📖 如何获取GPX文件？</h2>
+            <h2>📖 如何获取轨迹记录GPX？</h2>
             <div class="guide-content">
                 <!-- 搜索框 -->
                 <div class="search-box">
@@ -389,7 +390,7 @@
                 </div>
 
                 <!-- 手机应用 -->
-                <div class="guide-section" data-keywords="手机 app strava 骑记 行者 咕咚 keep 顽鹿竞技">
+                <div class="guide-section" data-keywords="手机 app strava 骑记 行者 咕咚 keep 顽鹿竞技 两步路 六只脚 户外助手 悦跑圈 徒步 跑步">
                     <h3>📱 手机应用</h3>
                     
                     <div class="device-group">
@@ -410,7 +411,7 @@
                                     <ul>
                                         <li>进入设置 → 隐私控制</li>
                                         <li>点击"下载或删除你的账户"</li>
-                                        <li>请求数据导出（包含所有GPX文件）</li>
+                                        <li>请求数据导出（包含所有轨迹记录GPX）</li>
                                     </ul>
                                 </li>
                             </ol>
@@ -448,6 +449,43 @@
                                 <li>找到运动记录</li>
                                 <li>查看是否有"导出"或"分享"功能</li>
                                 <li>部分App可能需要会员才能导出</li>
+                                <li>也可以尝试同步到Strava后导出</li>
+                            </ol>
+                        </div>
+
+                        <div class="device-item">
+                            <h5>🏔️ 两步路（户外助手）</h5>
+                            <ol>
+                                <li>打开两步路App</li>
+                                <li>进入"我的" → "轨迹记录"</li>
+                                <li>选择要导出的轨迹</li>
+                                <li>点击轨迹详情页右上角"..."菜单</li>
+                                <li>选择"导出" → "GPX格式"</li>
+                                <li>也可以通过网页版（www.2bulu.com）登录后导出</li>
+                            </ol>
+                        </div>
+
+                        <div class="device-item">
+                            <h5>🏔️ 六只脚</h5>
+                            <ol>
+                                <li>打开六只脚App</li>
+                                <li>进入"我的" → "我的轨迹"</li>
+                                <li>选择要导出的轨迹</li>
+                                <li>点击轨迹详情页</li>
+                                <li>点击"分享"或"导出"按钮</li>
+                                <li>选择"GPX格式"导出</li>
+                                <li>也可以通过网页版（www.foooooot.com）导出</li>
+                            </ol>
+                        </div>
+
+                        <div class="device-item">
+                            <h5>🏃 悦跑圈 / Keep</h5>
+                            <ol>
+                                <li>打开对应App</li>
+                                <li>进入"我的" → "运动记录"或"跑步记录"</li>
+                                <li>选择要导出的活动</li>
+                                <li>查看是否有"导出"或"分享"功能</li>
+                                <li>部分App可能需要会员才能导出GPX</li>
                                 <li>也可以尝试同步到Strava后导出</li>
                             </ol>
                         </div>
@@ -493,7 +531,7 @@
                     </div>
 
                     <div class="faq-item">
-                        <h5>Q: GPX文件很大，上传很慢怎么办？</h5>
+                        <h5>Q: 轨迹记录GPX很大，上传很慢怎么办？</h5>
                         <p>A: 可以使用GPX编辑工具简化轨迹点，或者分批上传多个小文件。</p>
                     </div>
 
@@ -513,7 +551,7 @@
             <h2>☕ 支持项目开发</h2>
             <div class="donate-content">
                 <div class="donate-intro">
-                    <p>🚴‍♂️ 如果这个骑行热力图工具对您有帮助，欢迎请作者喝杯咖啡！</p>
+                    <p>🚴‍♂️ 如果这个运动轨迹热力图工具对您有帮助，欢迎请作者喝杯咖啡！</p>
                     <p>您的支持是项目持续发展的动力 💪</p>
                 </div>
                 

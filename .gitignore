@@ -42,3 +42,8 @@ convert*.py
 convert*.bat
 requirements.txt
 *CONVERT*.md
+
+# 清理和临时文档
+*CLEANUP*.md
+*SUMMARY*.md
+*清理*.md

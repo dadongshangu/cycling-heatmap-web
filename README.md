@@ -1,6 +1,6 @@
-# 🚴 Cycling Heatmap Generator (Web Version)
+# 🚴 运动轨迹热力图生成器 (Web Version)
 
-一个基于Web的骑行热力图生成器，将GPX轨迹文件转换为Strava风格的交互式热力图。
+一个基于Web的GPS轨迹热力图生成器，专注于骑行，同时支持徒步、跑步等所有GPS轨迹。将GPX轨迹文件转换为Strava风格的交互式热力图。
 
 ## ✨ 特性
 
@@ -20,7 +20,7 @@
 
 ### 在线使用
 1. 直接打开 `index.html` 文件
-2. 拖拽或选择GPX文件上传
+2. 拖拽或选择轨迹记录GPX上传
 3. 调整参数设置（可选）
 4. 点击"生成热力图"按钮
 5. 在地图上查看结果
@@ -56,11 +56,11 @@ bike_heat_web_version/
 │   └── style.css          # 样式文件
 ├── js/
 │   ├── main.js            # 主应用逻辑
-│   ├── gpx-parser.js      # GPX文件解析器
+│   ├── gpx-parser.js      # 轨迹记录GPX解析器
 │   ├── heatmap-renderer.js # 热力图渲染器
 │   └── map-config.js      # 地图配置
 ├── assets/
-│   └── demo/              # 示例GPX文件
+│   └── demo/              # 示例轨迹记录GPX
 │       ├── README.md      # 示例文件说明
 │       ├── sample_beijing_ride.gpx
 │       └── sample_shanghai_ride.gpx
@@ -114,13 +114,13 @@ bike_heat_web_version/
 
 ## 📊 支持的文件格式
 
-- **GPX文件** (.gpx) - GPS Exchange Format
+- **轨迹记录GPX** (.gpx) - GPS Exchange Format
 - **批量上传** - 支持同时上传多个文件
 - **自动解析** - 提取轨迹点、时间戳、海拔等信息
 
-## 📖 GPX文件获取指南
+## 📖 轨迹记录GPX获取指南
 
-应用内置了详细的GPX文件获取指南，涵盖各种设备和应用：
+应用内置了详细的轨迹记录GPX获取指南，涵盖各种设备和应用：
 
 ### 🚴 码表设备
 - **迈金码表 (MEILAN)** - 通过顽鹿竞技App导出
@@ -136,10 +136,12 @@ bike_heat_web_version/
 
 ### 📱 手机应用
 - **国际应用** - Strava、Komoot、MapMyRide等
-- **国内应用** - 顽鹿竞技、骑记、行者、咕咚等
+- **国内骑行应用** - 顽鹿竞技、骑记、行者、咕咚等
+- **国内徒步应用** - 两步路（户外助手）、六只脚等
+- **运动健身应用** - 悦跑圈、Keep等
 
 ### 🔍 智能搜索
-点击"📖 如何获取GPX文件？"按钮，使用搜索功能快速找到你的设备：
+点击"📖 如何获取轨迹记录GPX？"按钮，使用搜索功能快速找到你的设备：
 - 搜索"迈金"找到迈金码表的导出方法
 - 搜索"Strava"找到Strava的导出步骤
 - 搜索"Apple Watch"找到手表的导出方式
@@ -302,7 +304,7 @@ server {
 **Q: 地图显示空白？**
 A: 检查网络连接，确保能访问地图瓦片服务器
 
-**Q: GPX文件解析失败？**
+**Q: 轨迹记录GPX解析失败？**
 A: 确保文件格式正确，包含有效的轨迹点数据
 
 **Q: 热力图不显示？**
@@ -373,4 +375,4 @@ MIT License - 详见 [LICENSE](../LICENSE) 文件
 
 ---
 
-**享受你的骑行热力图之旅！** 🚴‍♂️✨
+**享受你的运动轨迹热力图之旅！** 🚴‍♂️✨

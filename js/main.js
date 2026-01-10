@@ -1,5 +1,5 @@
 /**
- * Main Application - 骑行热力图生成器主程序
+ * Main Application - 运动轨迹热力图生成器主程序
  */
 
 class CyclingHeatmapApp {
@@ -183,7 +183,7 @@ class CyclingHeatmapApp {
         if (files.length > 0) {
             this.processFiles(files);
         } else {
-            this.showMessage('请选择GPX文件', 'warning');
+            this.showMessage('请选择轨迹记录GPX', 'warning');
         }
     }
 
@@ -337,7 +337,7 @@ class CyclingHeatmapApp {
      */
     async generateHeatmap() {
         if (this.loadedTracks.length === 0) {
-            this.showMessage('请先上传GPX文件', 'warning');
+            this.showMessage('请先上传轨迹记录GPX', 'warning');
             return;
         }
 
@@ -462,20 +462,31 @@ class CyclingHeatmapApp {
         }
 
         try {
-            // 显示导出进度
-            this.showLoading(true, '正在导出热力图...');
+            // 检测是否为移动设备（复用heatmapRenderer的方法）
+            const isMobile = this.heatmapRenderer.isMobileDevice();
             
-            // 等待一小段时间确保地图完全渲染
-            await new Promise(resolve => setTimeout(resolve, 500));
+            // 显示导出进度
+            const loadingText = isMobile ? '正在导出热力图（移动端可能需要更长时间）...' : '正在导出热力图...';
+            this.showLoading(true, loadingText);
+            
+            // 移动端需要更长的等待时间确保地图完全渲染
+            const waitTime = isMobile ? 1000 : 500;
+            await new Promise(resolve => setTimeout(resolve, waitTime));
             
             // 导出并下载图片
             await this.heatmapRenderer.exportAndDownload();
             
-            this.showMessage('热力图导出成功！', 'success');
+            // 移动端提示
+            if (isMobile) {
+                this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
+            } else {
+                this.showMessage('热力图导出成功！', 'success');
+            }
             
         } catch (error) {
             console.error('导出地图时出错:', error);
-            this.showMessage('导出地图时出错: ' + error.message, 'error');
+            const errorMsg = error.message || '导出失败，请重试';
+            this.showMessage('导出地图时出错: ' + errorMsg, 'error');
         } finally {
             this.showLoading(false);
         }
