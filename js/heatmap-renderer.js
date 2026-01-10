@@ -460,13 +460,22 @@ class HeatmapRenderer {
     fitMapToPoints(points) {
         if (!points || points.length === 0) return;
 
-        // 计算边界
-        const lats = points.map(p => p[0]);
-        const lons = points.map(p => p[1]);
-        
+        // 使用循环计算边界，避免栈溢出（当点数过多时，展开运算符会导致栈溢出）
+        let minLat = Infinity, maxLat = -Infinity;
+        let minLon = Infinity, maxLon = -Infinity;
+
+        for (let i = 0; i < points.length; i++) {
+            const lat = points[i][0];
+            const lon = points[i][1];
+            if (lat < minLat) minLat = lat;
+            if (lat > maxLat) maxLat = lat;
+            if (lon < minLon) minLon = lon;
+            if (lon > maxLon) maxLon = lon;
+        }
+
         const bounds = L.latLngBounds([
-            [Math.min(...lats), Math.min(...lons)],
-            [Math.max(...lats), Math.max(...lons)]
+            [minLat, minLon],
+            [maxLat, maxLon]
         ]);
 
         // 添加一些边距
