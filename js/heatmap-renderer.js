@@ -789,23 +789,10 @@ class HeatmapRenderer {
      * @returns {Promise<string>} Base64图片数据
      */
     async exportMapAsImage(fastMode = false, retryCount = 0) {
-        // 确保 html2canvas 已加载
-        try {
-            await this.loadHtml2Canvas();
-        } catch (error) {
-            return Promise.reject(new Error('导出功能加载失败: ' + (error.message || '未知错误')));
-        }
-
         return new Promise((resolve, reject) => {
             try {
-                // 再次验证 html2canvas 是否可用（检查多种可能的全局变量名）
-                const html2canvasFn = (typeof html2canvas !== 'undefined' && typeof html2canvas === 'function')
-                    ? html2canvas
-                    : (typeof window !== 'undefined' && window.html2canvas && typeof window.html2canvas === 'function')
-                    ? window.html2canvas
-                    : null;
-                
-                if (!html2canvasFn) {
+                // 直接使用全局 html2canvas 函数（与之前能工作的版本一致）
+                if (typeof html2canvas === 'undefined' || typeof html2canvas !== 'function') {
                     reject(new Error('html2canvas 库未加载，无法导出'));
                     return;
                 }
@@ -849,7 +836,7 @@ class HeatmapRenderer {
                             }
                         };
                     } else {
-                        // 正常模式：scale=1.0（高质量），优化配置
+                        // 正常模式：scale=1.0（高质量），与之前能工作的版本一致
                         scale = 1.0;
                         timeout = 25000; // 25秒超时（高质量需要更长时间）
                         html2canvasOptions = {
@@ -864,21 +851,11 @@ class HeatmapRenderer {
                             scrollY: 0,
                             windowWidth: mapContainer.offsetWidth,
                             windowHeight: mapContainer.offsetHeight,
-                            imageTimeout: 8000, // 优化：减少图片加载超时时间（从12秒降到8秒）
-                            foreignObjectRendering: false,
-                            ignoreElements: (element) => {
-                                // 忽略不必要的元素，减少处理时间
-                                return element.classList && (
-                                    element.classList.contains('leaflet-control-container') ||
-                                    element.classList.contains('leaflet-control-zoom') ||
-                                    element.classList.contains('api-usage-panel') ||
-                                    element.classList.contains('map-type-indicator')
-                                );
-                            }
+                            imageTimeout: 12000 // 恢复为12秒（与之前能工作的版本一致）
                         };
                     }
                 } else {
-                    // PC端：优化配置以提升导出速度
+                    // PC端：完全使用原有配置（与之前能工作的版本一致）
                     scale = 1.0;
                     timeout = 15000; // 15秒超时
                     html2canvasOptions = {
@@ -888,22 +865,7 @@ class HeatmapRenderer {
                         scale: scale,
                         logging: false,
                         width: mapContainer.offsetWidth,
-                        height: mapContainer.offsetHeight,
-                        scrollX: 0,
-                        scrollY: 0,
-                        windowWidth: mapContainer.offsetWidth,
-                        windowHeight: mapContainer.offsetHeight,
-                        imageTimeout: 8000, // 8秒图片加载超时（优化：减少等待时间）
-                        foreignObjectRendering: false, // 禁用foreignObject，提升速度
-                        ignoreElements: (element) => {
-                            // 忽略不必要的元素，减少处理时间
-                            return element.classList && (
-                                element.classList.contains('leaflet-control-container') ||
-                                element.classList.contains('leaflet-control-zoom') ||
-                                element.classList.contains('api-usage-panel') ||
-                                element.classList.contains('map-type-indicator')
-                            );
-                        }
+                        height: mapContainer.offsetHeight
                     };
                 }
                 
@@ -914,7 +876,7 @@ class HeatmapRenderer {
                     reject(new Error('EXPORT_TIMEOUT'));
                 }, timeout);
                 
-                // 添加onclone处理（PC端和移动端都需要）
+                // 添加onclone处理（PC端和移动端快速模式）
                 html2canvasOptions.onclone = (clonedDoc) => {
                     // 确保克隆的文档中的样式正确
                     const clonedMapContainer = clonedDoc.querySelector('#map');
@@ -923,8 +885,8 @@ class HeatmapRenderer {
                         clonedMapContainer.style.height = mapContainer.offsetHeight + 'px';
                     }
                     
-                    // PC端和移动端快速模式：隐藏不必要的元素以提升速度
-                    if (!isMobile || fastMode) {
+                    // 移动端快速模式：隐藏不必要的元素以提升速度
+                    if (isMobile && fastMode) {
                         const controls = clonedDoc.querySelectorAll('.leaflet-control-container, .api-usage-panel, .map-type-indicator');
                         controls.forEach(el => {
                             if (el) el.style.display = 'none';
@@ -932,9 +894,8 @@ class HeatmapRenderer {
                     }
                 };
                 
-                // 使用html2canvas截图（使用之前获取的函数引用）
-                // html2canvasFn 已在上面声明，直接使用
-                html2canvasFn(mapContainer, html2canvasOptions).then(canvas => {
+                // 使用html2canvas截图（直接使用全局函数）
+                html2canvas(mapContainer, html2canvasOptions).then(canvas => {
                     // 清除超时
                     if (timeoutId) clearTimeout(timeoutId);
                     // 转换为base64（保持高质量，quality=1.0）
