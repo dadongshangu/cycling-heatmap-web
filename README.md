@@ -78,9 +78,10 @@ cycling-heatmap-web/
 │   │   ├── regression/    # 回归测试
 │   │   ├── fixtures/      # 测试数据
 │   │   └── test-all.js    # 运行所有测试
-│   ├── pre-commit-fast-test.bat  # Pre-commit hook（Windows）
-│   ├── pre-push-full-test.bat    # Pre-push hook（Windows）
-│   └── setup-git-hooks.bat       # Git hooks设置脚本
+│   ├── pre-commit-hook.js        # Pre-commit hook（Node.js，跨平台）
+│   ├── pre-push-hook.js          # Pre-push hook（Node.js，跨平台）
+│   ├── setup-git-hooks.bat       # Git hooks设置脚本（Windows）
+│   └── setup-git-hooks.sh        # Git hooks设置脚本（Linux/Mac）
 │   └── README.md          # 脚本使用说明
 ├── doc/
 │   ├── TESTING_GUIDE.md   # 测试指南
@@ -439,7 +440,19 @@ node scripts/check-files.js       # 文件完整性
 node scripts/check-quality.js     # 代码质量
 ```
 
-**Git Pre-commit Hook：** 每次 `git commit` 会自动运行测试，失败时阻止提交。
+**Git Hooks：** 每次 `git commit` 和 `git push` 会自动运行测试，失败时阻止操作。
+
+**设置Git Hooks：**
+```bash
+# Windows（推荐）
+scripts\setup-git-hooks.bat
+
+# Linux/Mac（推荐）
+chmod +x scripts/setup-git-hooks.sh
+./scripts/setup-git-hooks.sh
+```
+
+**注意：** Git hooks使用Node.js脚本（.js文件），可以跨平台工作，Git可以直接执行。
 
 **测试内容：**
 - ✅ JavaScript语法检查
@@ -447,6 +460,8 @@ node scripts/check-quality.js     # 代码质量
 - ✅ 文件完整性检查
 - ✅ HTML结构验证
 - ✅ 代码质量检查
+- ✅ 单元测试（GeoUtils、GPX解析器）
+- ✅ 回归测试（导出功能、FIT解析）
 
 详细说明请参考：`doc/TESTING_GUIDE.md`
 

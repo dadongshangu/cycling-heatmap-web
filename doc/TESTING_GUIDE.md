@@ -163,14 +163,21 @@ node scripts/test/regression/test-fit-regression.js
 
 **设置Hook（Windows）：**
 ```bash
-# 复制pre-commit hook
-copy scripts\pre-commit-fast-test.bat .git\hooks\pre-commit
+# 使用设置脚本（推荐）
+scripts\setup-git-hooks.bat
+
+# 或手动复制
+copy scripts\pre-commit-hook.js .git\hooks\pre-commit
 ```
 
 **设置Hook（Linux/Mac）：**
 ```bash
-# 复制pre-commit hook
-cp scripts/pre-commit-fast-test.sh .git/hooks/pre-commit
+# 使用设置脚本（推荐）
+chmod +x scripts/setup-git-hooks.sh
+./scripts/setup-git-hooks.sh
+
+# 或手动复制
+cp scripts/pre-commit-hook.js .git/hooks/pre-commit
 chmod +x .git/hooks/pre-commit
 ```
 
@@ -180,14 +187,25 @@ chmod +x .git/hooks/pre-commit
 
 **设置Hook（Windows）：**
 ```bash
-copy scripts\pre-push-full-test.bat .git\hooks\pre-push
+# 使用设置脚本（推荐）
+scripts\setup-git-hooks.bat
+
+# 或手动复制
+copy scripts\pre-push-hook.js .git\hooks\pre-push
 ```
 
 **设置Hook（Linux/Mac）：**
 ```bash
-cp scripts/pre-push-full-test.sh .git/hooks/pre-push
+# 使用设置脚本（推荐）
+chmod +x scripts/setup-git-hooks.sh
+./scripts/setup-git-hooks.sh
+
+# 或手动复制
+cp scripts/pre-push-hook.js .git/hooks/pre-push
 chmod +x .git/hooks/pre-push
 ```
+
+**注意：** Git hooks现在使用Node.js脚本（.js文件），而不是.bat/.sh文件，这样可以跨平台工作，并且Git可以直接执行。
 
 ### 手动运行（测试Hook）
 
