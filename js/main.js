@@ -47,17 +47,30 @@ class CyclingHeatmapApp {
     initErrorHandling() {
         // 捕获全局JavaScript错误
         window.addEventListener('error', (event) => {
-            console.error('Global JavaScript error:', event.error);
+            // 忽略某些已知的、不影响功能的错误
+            const errorMessage = event.error?.message || event.message || '';
+            const errorSource = event.filename || '';
+            
+            // 忽略 leaflet-heat 库中的某些内部错误（如果图层正在更新）
+            if (errorSource.includes('leaflet-heat') && 
+                (errorMessage.includes('getSize') || errorMessage.includes('null'))) {
+                console.warn('Ignored leaflet-heat internal error during layer update:', errorMessage);
+                return;
+            }
+            
+            console.error('Global JavaScript error:', event.error || event.message);
             this.logError('JavaScript Error', {
-                message: event.error?.message || event.message,
-                stack: event.error?.stack,
-                filename: event.filename,
+                message: errorMessage,
+                stack: event.error?.stack || '',
+                filename: errorSource,
                 lineno: event.lineno,
                 colno: event.colno
             });
             
-            // 显示用户友好的错误提示
-            if (!event.error || !event.error.message || !event.error.message.includes('Script error')) {
+            // 显示用户友好的错误提示（仅对严重错误）
+            if (event.error && event.error.message && 
+                !errorMessage.includes('getSize') && 
+                !errorMessage.includes('leaflet-heat')) {
                 this.showMessage('发生了一个错误，请刷新页面重试', 'error');
             }
         });

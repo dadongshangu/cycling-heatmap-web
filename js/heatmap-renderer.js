@@ -58,9 +58,11 @@ class HeatmapRenderer {
         // 添加地图事件监听
         this.map.on('zoomend', () => {
             this.updateHeatmapZoom();
-            // 如果使用空间索引，缩放后更新可见点
+            // 如果使用空间索引，缩放后更新可见点（延迟执行，确保地图状态稳定）
             if (this.useSpatialIndex) {
-                this.updateVisibleHeatmap();
+                setTimeout(() => {
+                    this.updateVisibleHeatmap();
+                }, 50);
             }
         });
     }
@@ -439,11 +441,20 @@ class HeatmapRenderer {
                 this.map.hasInitialBounds = true;
             }
             
-            // 获取当前视野范围内的点
-            const bounds = this.map.getBounds();
-            const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
-            points = visiblePoints;
-            console.log(`✓ 空间索引：当前视野内 ${visiblePoints.length.toLocaleString()} 个点`);
+            // 获取当前视野范围内的点（如果地图已初始化）
+            try {
+                const bounds = this.map.getBounds();
+                if (bounds && bounds.getSouth && bounds.getNorth) {
+                    const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
+                    points = visiblePoints;
+                    console.log(`✓ 空间索引：当前视野内 ${visiblePoints.length.toLocaleString()} 个点`);
+                } else {
+                    console.warn('地图边界未初始化，使用全部点');
+                }
+            } catch (error) {
+                console.warn('获取地图边界时出错，使用全部点:', error);
+                // 如果获取边界失败，使用全部点
+            }
         } else {
             // 小数据集：清除空间索引，移除事件监听
             this.spatialIndex = null;
@@ -653,8 +664,11 @@ class HeatmapRenderer {
         this.updateVisibleHeatmapDebounced = () => {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
-                this.updateVisibleHeatmap();
-            }, 150); // 150ms防抖
+                // 确保地图状态稳定后再更新
+                if (this.map && this.map.getBounds && this.useSpatialIndex) {
+                    this.updateVisibleHeatmap();
+                }
+            }, 200); // 200ms防抖，给地图更多时间稳定
         };
         
         this.map.on('moveend', this.updateVisibleHeatmapDebounced);
@@ -674,33 +688,49 @@ class HeatmapRenderer {
      * 更新可见热力图（仅渲染当前视野范围内的点）
      */
     updateVisibleHeatmap() {
-        if (!this.useSpatialIndex || !this.spatialIndex || !this.heatLayer) {
+        if (!this.useSpatialIndex || !this.spatialIndex || !this.heatLayer || !this.map) {
             return;
         }
 
-        const bounds = this.map.getBounds();
-        const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
-
-        if (visiblePoints.length === 0) {
+        // 检查地图是否已初始化
+        if (!this.map.getBounds || typeof this.map.getBounds !== 'function') {
             return;
         }
 
-        // Leaflet heatLayer 不支持 setLatLngs，需要重新创建图层
-        // 但保留当前的选项设置
-        const currentOptions = {
-            radius: this.heatmapOptions.radius,
-            blur: this.heatmapOptions.blur,
-            minOpacity: this.heatmapOptions.minOpacity,
-            maxZoom: this.heatmapOptions.maxZoom,
-            gradient: this.getStravaGradient()
-        };
-        
-        // 移除旧图层
-        this.map.removeLayer(this.heatLayer);
-        
-        // 创建新图层
-        this.heatLayer = L.heatLayer(visiblePoints, currentOptions);
-        this.heatLayer.addTo(this.map);
+        try {
+            const bounds = this.map.getBounds();
+            if (!bounds || !bounds.getSouth || !bounds.getNorth) {
+                return;
+            }
+
+            const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
+
+            if (visiblePoints.length === 0) {
+                return;
+            }
+
+            // Leaflet heatLayer 不支持 setLatLngs，需要重新创建图层
+            // 但保留当前的选项设置
+            const currentOptions = {
+                radius: this.heatmapOptions.radius,
+                blur: this.heatmapOptions.blur,
+                minOpacity: this.heatmapOptions.minOpacity,
+                maxZoom: this.heatmapOptions.maxZoom,
+                gradient: this.getStravaGradient()
+            };
+            
+            // 移除旧图层（如果存在）
+            if (this.heatLayer && this.map.hasLayer(this.heatLayer)) {
+                this.map.removeLayer(this.heatLayer);
+            }
+            
+            // 创建新图层
+            this.heatLayer = L.heatLayer(visiblePoints, currentOptions);
+            this.heatLayer.addTo(this.map);
+        } catch (error) {
+            console.warn('更新可见热力图时出错:', error);
+            // 出错时不更新，保持当前状态
+        }
     }
 
     /**
