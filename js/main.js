@@ -10,7 +10,40 @@ class CyclingHeatmapApp {
         this.isProcessing = false;
         this.startTime = null; // 用于计算处理时间
         
+        // 缓存常用 DOM 元素
+        this.domElements = {};
+        this.cacheDOMElements();
+        
         this.initializeApp();
+    }
+    
+    /**
+     * 缓存常用的 DOM 元素
+     */
+    cacheDOMElements() {
+        const elementIds = [
+            'fileInput', 'selectFileBtn', 'clearFilesBtn', 'generateBtn', 
+            'exportBtn', 'fullscreenBtn', 'dateRange', 'mapStyle', 
+            'mapLanguage', 'radius', 'blur', 'opacity', 'fileList',
+            'loadingOverlay', 'loadingText', 'progressFill', 'apiUsagePanel'
+        ];
+        this.domElements = domCache.getElements(elementIds);
+    }
+    
+    /**
+     * 获取 DOM 元素（带缓存）
+     * @param {string} id - 元素 ID
+     * @returns {HTMLElement|null}
+     */
+    getElement(id) {
+        if (this.domElements[id]) {
+            return this.domElements[id];
+        }
+        const element = domCache.getElement(id);
+        if (element) {
+            this.domElements[id] = element;
+        }
+        return element;
     }
 
     /**
@@ -38,7 +71,7 @@ class CyclingHeatmapApp {
         // 初始化UI状态
         this.updateUI();
         
-        console.log('🚴 Cycling Heatmap Generator 已启动');
+        logger.info('🚴 Cycling Heatmap Generator 已启动');
     }
 
     /**
@@ -54,11 +87,11 @@ class CyclingHeatmapApp {
             // 忽略 leaflet-heat 库中的某些内部错误（如果图层正在更新）
             if (errorSource.includes('leaflet-heat') && 
                 (errorMessage.includes('getSize') || errorMessage.includes('null'))) {
-                console.warn('Ignored leaflet-heat internal error during layer update:', errorMessage);
+                logger.warn('Ignored leaflet-heat internal error during layer update:', errorMessage);
                 return;
             }
             
-            console.error('Global JavaScript error:', event.error || event.message);
+            logger.error('Global JavaScript error:', event.error || event.message);
             this.logError('JavaScript Error', {
                 message: errorMessage,
                 stack: event.error?.stack || '',
@@ -77,7 +110,7 @@ class CyclingHeatmapApp {
         
         // 捕获未处理的Promise拒绝
         window.addEventListener('unhandledrejection', (event) => {
-            console.error('Unhandled promise rejection:', event.reason);
+            logger.error('Unhandled promise rejection:', event.reason);
             this.logError('Unhandled Promise Rejection', {
                 reason: event.reason?.toString() || String(event.reason),
                 stack: event.reason?.stack
@@ -105,7 +138,7 @@ class CyclingHeatmapApp {
         
         // 在开发环境或调试模式下输出详细错误信息
         if (console && console.error) {
-            console.error(`[ErrorHandler] ${type}:`, errorLog);
+            logger.error(`[ErrorHandler] ${type}:`, errorLog);
         }
         
         // 可以在这里添加错误上报逻辑（如发送到错误监控服务）
@@ -116,7 +149,7 @@ class CyclingHeatmapApp {
      * 配置文件输入 - PC端保留GPX筛选，移动端移除限制
      */
     configureFileInput() {
-        const fileInput = document.getElementById('fileInput');
+        const fileInput = this.getElement('fileInput');
         if (!fileInput) return;
         
         // 检测是否为移动设备
@@ -136,14 +169,14 @@ class CyclingHeatmapApp {
      */
     bindEventListeners() {
         // 文件上传相关
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const selectFileBtn = document.getElementById('selectFileBtn');
-        const clearFilesBtn = document.getElementById('clearFiles');
+        const uploadArea = this.getElement('uploadArea');
+        const fileInput = this.getElement('fileInput');
+        const selectFileBtn = this.getElement('selectFileBtn');
+        const clearFilesBtn = this.getElement('clearFiles');
 
         // 检查必需元素是否存在
         if (!uploadArea || !fileInput) {
-            console.error('必需的上传元素未找到');
+            logger.error('必需的上传元素未找到');
             return;
         }
 
@@ -181,14 +214,14 @@ class CyclingHeatmapApp {
         this.bindParameterControls();
 
         // 生成按钮
-        const generateBtn = document.getElementById('generateBtn');
+        const generateBtn = this.getElement('generateBtn');
         if (generateBtn) {
             generateBtn.addEventListener('click', this.generateHeatmap.bind(this));
         }
 
         // 地图控制按钮
-        const exportBtn = document.getElementById('exportBtn');
-        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const exportBtn = this.getElement('exportBtn');
+        const fullscreenBtn = this.getElement('fullscreenBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', this.exportMap.bind(this));
         }
@@ -211,7 +244,7 @@ class CyclingHeatmapApp {
             // Ctrl/Cmd + O: 打开文件选择对话框
             if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
                 e.preventDefault();
-                const fileInput = document.getElementById('fileInput');
+                const fileInput = this.getElement('fileInput');
                 if (fileInput) {
                     fileInput.click();
                 }
@@ -220,7 +253,7 @@ class CyclingHeatmapApp {
             // Ctrl/Cmd + G: 生成热力图
             if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
                 e.preventDefault();
-                const generateBtn = document.getElementById('generateBtn');
+                const generateBtn = this.getElement('generateBtn');
                 if (generateBtn && !generateBtn.disabled) {
                     this.generateHeatmap();
                 }
@@ -261,9 +294,9 @@ class CyclingHeatmapApp {
      */
     bindParameterControls() {
         // 地图样式
-        const mapStyleSelect = document.getElementById('mapStyle');
+        const mapStyleSelect = this.getElement('mapStyle');
         if (!mapStyleSelect) {
-            console.error('mapStyle元素未找到');
+            logger.error('mapStyle元素未找到');
             return;
         }
         mapStyleSelect.addEventListener('change', (e) => {
@@ -272,9 +305,9 @@ class CyclingHeatmapApp {
         });
 
         // 地图语言
-        const mapLanguageSelect = document.getElementById('mapLanguage');
+        const mapLanguageSelect = this.getElement('mapLanguage');
         if (!mapLanguageSelect) {
-            console.error('mapLanguage元素未找到');
+            logger.error('mapLanguage元素未找到');
             return;
         }
         mapLanguageSelect.addEventListener('change', (e) => {
@@ -305,7 +338,8 @@ class CyclingHeatmapApp {
             if (currentLanguage === 'zh-vector' || currentLanguage === 'zh-satellite') {
                 this.showApiKeyPrompt();
                 // 自动切换回英文地图
-                document.getElementById('mapLanguage').value = 'en';
+                const mapLanguageEl = this.getElement('mapLanguage');
+                if (mapLanguageEl) mapLanguageEl.value = 'en';
                 this.heatmapRenderer.setMapLanguage('en');
                 this.updateApiUsagePanelVisibility('en');
             }
@@ -314,11 +348,11 @@ class CyclingHeatmapApp {
         // 滑块控件 - 使用防抖优化性能
         const controls = ['radius', 'blur', 'opacity'];
         controls.forEach(control => {
-            const slider = document.getElementById(control);
-            const valueDisplay = document.getElementById(control + 'Value');
+            const slider = this.getElement(control);
+            const valueDisplay = this.getElement(control + 'Value');
             
             if (!slider || !valueDisplay) {
-                console.warn(`参数控件 ${control} 未找到`);
+                logger.warn(`参数控件 ${control} 未找到`);
                 return;
             }
             
@@ -328,21 +362,21 @@ class CyclingHeatmapApp {
                 valueDisplay.textContent = value;
             });
             
-            // 防抖更新热力图（300ms延迟）
+            // 防抖更新热力图
             const debouncedUpdate = this.debounce(() => {
                 if (this.loadedTracks.length > 0 && this.heatmapRenderer) {
                     this.updateHeatmapParameters();
                 }
                 this.saveSettings(); // 保存设置
-            }, 300);
+            }, APP_CONFIG.DELAY.DEBOUNCE_LONG);
             
             slider.addEventListener('change', debouncedUpdate);
         });
 
         // 日期范围
-        const dateRangeSelect = document.getElementById('dateRange');
+        const dateRangeSelect = this.getElement('dateRange');
         if (!dateRangeSelect) {
-            console.error('dateRange元素未找到');
+            logger.error('dateRange元素未找到');
             return;
         }
         dateRangeSelect.addEventListener('change', () => {
@@ -359,7 +393,8 @@ class CyclingHeatmapApp {
     handleDragOver(e) {
         e.preventDefault();
         e.stopPropagation();
-        document.getElementById('uploadArea').classList.add('dragover');
+        const uploadArea = this.getElement('uploadArea');
+        if (uploadArea) uploadArea.classList.add('dragover');
     }
 
     /**
@@ -368,7 +403,8 @@ class CyclingHeatmapApp {
     handleDragLeave(e) {
         e.preventDefault();
         e.stopPropagation();
-        document.getElementById('uploadArea').classList.remove('dragover');
+        const uploadArea = this.getElement('uploadArea');
+        if (uploadArea) uploadArea.classList.remove('dragover');
     }
 
     /**
@@ -377,7 +413,8 @@ class CyclingHeatmapApp {
     handleDrop(e) {
         e.preventDefault();
         e.stopPropagation();
-        document.getElementById('uploadArea').classList.remove('dragover');
+        const uploadArea = this.getElement('uploadArea');
+        if (uploadArea) uploadArea.classList.remove('dragover');
         
         const files = Array.from(e.dataTransfer.files).filter(file => 
             file.name.toLowerCase().endsWith('.gpx')
@@ -602,17 +639,19 @@ class CyclingHeatmapApp {
             }
             
             if (failedTracks.length > 0) {
-                console.warn('解析失败的文件:', failedTracks);
+                logger.warn('解析失败的文件:', failedTracks);
                 
                 // 如果是移动端且有权限错误，记录日志
                 const isMobile = this.isMobileDevice();
                 if (permissionErrors.length > 0 && isMobile) {
-                    console.warn('移动端文件权限错误:', permissionErrors);
+                    logger.warn('移动端文件权限错误:', permissionErrors);
                 }
             }
             
         } catch (error) {
-            console.error('处理文件时出错:', error);
+            ErrorHandler.handle(error, 'handleFiles', {
+                showMessage: true
+            });
             const errorMsg = error.message?.toLowerCase() || '';
             const isMobile = this.isMobileDevice();
             
@@ -633,8 +672,8 @@ class CyclingHeatmapApp {
      * 更新进度
      */
     updateProgress(progress) {
-        const loadingText = document.getElementById('loadingText');
-        const progressFill = document.getElementById('progressFill');
+        const loadingText = this.getElement('loadingText');
+        const progressFill = this.getElement('progressFill');
         
         const percentage = (progress.current / progress.total) * 100;
         progressFill.style.width = percentage + '%';
@@ -670,9 +709,9 @@ class CyclingHeatmapApp {
      * 更新文件列表显示
      */
     updateFileList() {
-        const fileList = document.getElementById('fileList');
-        const fileListItems = document.getElementById('fileListItems');
-        const fileCountText = document.getElementById('fileCountText');
+        const fileList = this.getElement('fileList');
+        const fileListItems = this.getElement('fileListItems');
+        const fileCountText = this.getElement('fileCountText');
         
         if (this.loadedTracks.length === 0) {
             fileList.style.display = 'none';
@@ -700,9 +739,13 @@ class CyclingHeatmapApp {
     updateStatistics() {
         const stats = this.gpxParser.getStatistics();
         
-        document.getElementById('fileCount').textContent = this.loadedTracks.length;
-        document.getElementById('pointCount').textContent = stats.totalPoints.toLocaleString();
-        document.getElementById('totalDistance').textContent = stats.totalDistance + ' km';
+        const fileCountEl = this.getElement('fileCount');
+        const pointCountEl = this.getElement('pointCount');
+        const totalDistanceEl = this.getElement('totalDistance');
+        
+        if (fileCountEl) fileCountEl.textContent = this.loadedTracks.length;
+        if (pointCountEl) pointCountEl.textContent = stats.totalPoints.toLocaleString();
+        if (totalDistanceEl) totalDistanceEl.textContent = stats.totalDistance + ' km';
         document.getElementById('dateRangeText').textContent = this.gpxParser.getDateRangeText();
         
         document.getElementById('statsSection').style.display = 'block';
@@ -712,8 +755,8 @@ class CyclingHeatmapApp {
      * 启用生成按钮
      */
     enableGenerateButton() {
-        const generateBtn = document.getElementById('generateBtn');
-        generateBtn.disabled = false;
+        const generateBtn = this.getElement('generateBtn');
+        if (generateBtn) generateBtn.disabled = false;
     }
 
     /**
@@ -740,8 +783,10 @@ class CyclingHeatmapApp {
         // 重置UI
         document.getElementById('fileList').style.display = 'none';
         document.getElementById('statsSection').style.display = 'none';
-        document.getElementById('generateBtn').disabled = true;
-        document.getElementById('exportBtn').disabled = true;
+        const generateBtn = this.getElement('generateBtn');
+        const exportBtn = this.getElement('exportBtn');
+        if (generateBtn) generateBtn.disabled = true;
+        if (exportBtn) exportBtn.disabled = true;
         
         // 重置文件输入
         const fileInput = document.getElementById('fileInput');
@@ -760,18 +805,25 @@ class CyclingHeatmapApp {
      */
     saveSettings() {
         try {
+            const mapStyleEl = this.getElement('mapStyle');
+            const mapLanguageEl = this.getElement('mapLanguage');
+            const radiusEl = this.getElement('radius');
+            const blurEl = this.getElement('blur');
+            const opacityEl = this.getElement('opacity');
+            const dateRangeEl = this.getElement('dateRange');
+            
             const settings = {
-                mapStyle: document.getElementById('mapStyle')?.value || 'dark',
-                mapLanguage: document.getElementById('mapLanguage')?.value || 'en',
-                radius: document.getElementById('radius')?.value || '1',
-                blur: document.getElementById('blur')?.value || '1',
-                opacity: document.getElementById('opacity')?.value || '0.8',
-                dateRange: document.getElementById('dateRange')?.value || '365'
+                mapStyle: mapStyleEl?.value || 'dark',
+                mapLanguage: mapLanguageEl?.value || 'en',
+                radius: radiusEl?.value || '1',
+                blur: blurEl?.value || '1',
+                opacity: opacityEl?.value || '0.8',
+                dateRange: dateRangeEl?.value || '365'
             };
             
             localStorage.setItem('heatmap_settings', JSON.stringify(settings));
         } catch (error) {
-            console.warn('保存设置失败:', error);
+            logger.warn('保存设置失败:', error);
         }
     }
 
@@ -845,13 +897,13 @@ class CyclingHeatmapApp {
             }
             
             if (settings.dateRange) {
-                const dateRangeEl = document.getElementById('dateRange');
+                const dateRangeEl = this.getElement('dateRange');
                 if (dateRangeEl && ['30', '90', '180', '365', '0'].includes(settings.dateRange)) {
                     dateRangeEl.value = settings.dateRange;
                 }
             }
         } catch (error) {
-            console.warn('加载设置失败:', error);
+            logger.warn('加载设置失败:', error);
         }
     }
 
@@ -868,10 +920,14 @@ class CyclingHeatmapApp {
         
         try {
             // 获取日期过滤参数
-            const dateRange = parseInt(document.getElementById('dateRange').value);
+            const dateRangeEl = this.getElement('dateRange');
+            if (!dateRangeEl) {
+                throw new Error('日期范围选择器未找到');
+            }
+            const dateRange = parseInt(dateRangeEl.value);
             
             // 对每个轨迹段分别处理，保持轨迹边界，避免在不同轨迹之间插值
-            const maxPoints = 50000; // 最大点数限制
+            const maxPoints = APP_CONFIG.LIMITS.MAX_POINTS;
             const finalPoints = await this.processTracksAsync(this.loadedTracks, dateRange, maxPoints);
             
             if (finalPoints.length === 0) {
@@ -886,7 +942,10 @@ class CyclingHeatmapApp {
             this.heatmapRenderer.renderHeatmap(finalPoints);
             
             // 启用导出按钮
-            document.getElementById('exportBtn').disabled = false;
+            const exportBtn = this.getElement('exportBtn');
+            if (exportBtn) {
+                exportBtn.disabled = false;
+            }
             
             this.showMessage(`热力图生成成功！显示 ${finalPoints.length.toLocaleString()} 个轨迹点`, 'success');
             
@@ -895,7 +954,7 @@ class CyclingHeatmapApp {
             if (isMobile) {
                 // 等待一小段时间确保地图渲染完成
                 setTimeout(() => {
-                    const mapContainer = document.querySelector('.map-container') || document.getElementById('map');
+                    const mapContainer = document.querySelector('.map-container') || this.getElement('map');
                     if (mapContainer) {
                         mapContainer.scrollIntoView({ 
                             behavior: 'smooth', 
@@ -903,12 +962,14 @@ class CyclingHeatmapApp {
                             inline: 'nearest'
                         });
                     }
-                }, 300);
+                }, APP_CONFIG.DELAY.SCROLL);
             }
             
         } catch (error) {
-            console.error('生成热力图时出错:', error);
-            this.showMessage('生成热力图时出错: ' + error.message, 'error');
+            ErrorHandler.handle(error, 'generateHeatmap', {
+                showMessage: true,
+                message: '生成热力图时出错: ' + (error.message || '未知错误')
+            });
         } finally {
             this.showLoading(false);
         }
@@ -938,6 +999,7 @@ class CyclingHeatmapApp {
                 if (trackIndex >= tracks.length) {
                     // 所有轨迹处理完成
                     if (totalBeforeSampling > maxPoints) {
+                        logger.info(`为了性能优化，已使用Douglas-Peucker算法将 ${totalBeforeSampling.toLocaleString()} 个点优化为 ${totalAfterSampling.toLocaleString()} 个点，保持轨迹形状`);
                         this.showMessage(`为了性能优化，已使用Douglas-Peucker算法将 ${totalBeforeSampling.toLocaleString()} 个点优化为 ${totalAfterSampling.toLocaleString()} 个点，保持轨迹形状`, 'info');
                     }
                     resolve(finalPoints);
@@ -975,7 +1037,7 @@ class CyclingHeatmapApp {
                     totalAfterSampling += sampledPoints.length;
                     
                     // 对当前轨迹段进行插值（只在轨迹段内部插值，不跨轨迹段）
-                    const interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], 0.0005);
+                    const interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], APP_CONFIG.LIMITS.INTERPOLATION_THRESHOLD);
                     
                     // 将当前轨迹段的点添加到最终数组
                     finalPoints.push(...interpolatedPoints);
@@ -984,7 +1046,7 @@ class CyclingHeatmapApp {
                 trackIndex++;
                 
                 // 使用setTimeout让出控制权，避免阻塞UI
-                setTimeout(processNextTrack, 0);
+                setTimeout(processNextTrack, APP_CONFIG.DELAY.PROCESS_TRACK);
             };
             
             // 开始处理
@@ -1183,7 +1245,7 @@ class CyclingHeatmapApp {
         
         // 首先尝试使用Douglas-Peucker算法简化
         // 从较小的容差开始，逐步增大直到点数符合要求
-        let tolerance = 0.00001; // 初始容差（约1米）
+        let tolerance = 0.00001; // 初始容差（约1米）- 这个值较小，保持原值
         let simplified = points;
         let attempts = 0;
         const maxAttempts = 10;
@@ -1257,7 +1319,7 @@ class CyclingHeatmapApp {
             // PC端：完全使用原有逻辑（保持不变）
             if (!isMobile) {
                 this.showLoading(true, '正在导出热力图...');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, APP_CONFIG.DELAY.EXPORT_RETRY));
                 
                 const totalTimeout = 20000;
                 const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, false);
@@ -1307,13 +1369,15 @@ class CyclingHeatmapApp {
                 this.showMessage('热力图已打开，请长按图片保存到相册', 'success');
             } catch (downloadError) {
                 // 下载也失败，显示模态框
-                console.warn('下载失败，显示图片模态框:', downloadError);
+                logger.warn('下载失败，显示图片模态框:', downloadError);
                 this.heatmapRenderer.showImageInModal(dataURL, filename, '长按图片保存到相册');
                 this.showMessage('图片已显示，请长按保存', 'success');
             }
             
         } catch (error) {
-            console.error('导出地图时出错:', error);
+            ErrorHandler.handle(error, 'exportMap', {
+                showMessage: true
+            });
             const isMobile = this.heatmapRenderer.isMobileDevice();
             const errorMsg = error.message || '';
             
@@ -1474,7 +1538,7 @@ class CyclingHeatmapApp {
             }
         }, 3000);
         
-        console.log(`[${type.toUpperCase()}] ${message}`);
+        logger.debug(`[${type.toUpperCase()}] ${message}`);
     }
 
     /**
@@ -1677,8 +1741,10 @@ class CyclingHeatmapApp {
      */
     updateUI() {
         // 初始状态下禁用生成和导出按钮
-        document.getElementById('generateBtn').disabled = true;
-        document.getElementById('exportBtn').disabled = true;
+        const generateBtn = this.getElement('generateBtn');
+        const exportBtn = this.getElement('exportBtn');
+        if (generateBtn) generateBtn.disabled = true;
+        if (exportBtn) exportBtn.disabled = true;
         
         // 隐藏文件列表和统计信息
         document.getElementById('fileList').style.display = 'none';
@@ -1694,24 +1760,28 @@ class CyclingHeatmapApp {
 
 // 帮助模态框相关函数
 function showHelp() {
-    console.log('showHelp() called - showing help modal');
-    document.getElementById('helpModal').style.display = 'flex';
+    logger.debug('showHelp() called - showing help modal');
+    const modal = domCache.getElement('helpModal');
+    if (modal) modal.style.display = 'flex';
 }
 
 function closeHelp() {
-    console.log('closeHelp() called - closing help modal');
-    document.getElementById('helpModal').style.display = 'none';
+    logger.debug('closeHelp() called - closing help modal');
+    const modal = domCache.getElement('helpModal');
+    if (modal) modal.style.display = 'none';
 }
 
 // GPX指南模态框相关函数
 function showGpxGuide() {
-    console.log('showGpxGuide() called - showing GPX guide modal');
-    document.getElementById('gpxGuideModal').style.display = 'flex';
+    logger.debug('showGpxGuide() called - showing GPX guide modal');
+    const modal = domCache.getElement('gpxGuideModal');
+    if (modal) modal.style.display = 'flex';
 }
 
 function closeGpxGuide() {
-    console.log('closeGpxGuide() called - closing GPX guide modal');
-    document.getElementById('gpxGuideModal').style.display = 'none';
+    logger.debug('closeGpxGuide() called - closing GPX guide modal');
+    const modal = domCache.getElement('gpxGuideModal');
+    if (modal) modal.style.display = 'none';
 }
 
 // 搜索过滤功能
@@ -1762,13 +1832,15 @@ function filterGuide() {
 
 // 捐赠模态框相关函数
 function showDonate() {
-    console.log('showDonate() called - showing donate modal');
-    document.getElementById('donateModal').style.display = 'flex';
+    logger.debug('showDonate() called - showing donate modal');
+    const modal = domCache.getElement('donateModal');
+    if (modal) modal.style.display = 'flex';
 }
 
 function closeDonate() {
-    console.log('closeDonate() called - closing donate modal');
-    document.getElementById('donateModal').style.display = 'none';
+    logger.debug('closeDonate() called - closing donate modal');
+    const modal = domCache.getElement('donateModal');
+    if (modal) modal.style.display = 'none';
 }
 
 // 点击模态框外部关闭

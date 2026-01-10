@@ -16,10 +16,10 @@ class HeatmapRenderer {
             ? new TiandituUsageTracker() 
             : null;
         this.heatmapOptions = {
-            radius: 1,
-            blur: 1,
-            minOpacity: 0.8,
-            maxZoom: 18
+            radius: APP_CONFIG.HEATMAP.DEFAULT_RADIUS,
+            blur: APP_CONFIG.HEATMAP.DEFAULT_BLUR,
+            minOpacity: APP_CONFIG.HEATMAP.DEFAULT_OPACITY,
+            maxZoom: APP_CONFIG.HEATMAP.MAX_ZOOM
         };
         
         // 空间索引相关
@@ -62,7 +62,7 @@ class HeatmapRenderer {
             if (this.useSpatialIndex) {
                 setTimeout(() => {
                     this.updateVisibleHeatmap();
-                }, 50);
+                }, APP_CONFIG.DELAY.ZOOM_UPDATE);
             }
         });
     }
@@ -72,7 +72,7 @@ class HeatmapRenderer {
      */
     bindAutoSwitchEvent() {
         document.addEventListener('tiandituAutoSwitch', (event) => {
-            console.log('天地图API配额接近限制，自动切换到英文地图');
+            logger.info('天地图API配额接近限制，自动切换到英文地图');
             this.setMapLanguage('en');
             this.showAutoSwitchMessage(event.detail);
         });
@@ -89,7 +89,7 @@ class HeatmapRenderer {
         if (window.app && window.app.showMessage) {
             window.app.showMessage(message, 'warning');
         } else {
-            console.warn(message);
+            logger.warn(message);
             alert(message);
         }
     }
@@ -149,7 +149,7 @@ class HeatmapRenderer {
         // 更新地图类型指示器
         this.updateMapTypeIndicator();
         
-        console.log(`地图切换: 语言=${this.mapLanguage}, 样式=${this.mapStyle}`);
+        logger.debug(`地图切换: 语言=${this.mapLanguage}, 样式=${this.mapStyle}`);
     }
 
     /**
@@ -188,7 +188,7 @@ class HeatmapRenderer {
             if (options.onError) {
                 options.onError(e);
             } else {
-                console.warn('Tile loading error:', e);
+                logger.warn('Tile loading error:', e);
             }
         });
         
@@ -206,7 +206,7 @@ class HeatmapRenderer {
     createTiandituVectorLayers() {
         // 检查MAP_CONFIG是否可用
         if (typeof MAP_CONFIG === 'undefined') {
-            console.warn('MAP_CONFIG未加载，切换到英文地图');
+            logger.warn('MAP_CONFIG未加载，切换到英文地图');
             this.createEnglishLayers();
             this.triggerApiKeyMissingEvent();
             return;
@@ -214,14 +214,14 @@ class HeatmapRenderer {
 
         // 检查API密钥是否已配置
         if (!MAP_CONFIG.hasApiKey()) {
-            console.warn('未配置天地图API密钥，切换到英文地图');
+            logger.warn('未配置天地图API密钥，切换到英文地图');
             this.createEnglishLayers();
             this.triggerApiKeyMissingEvent();
             return;
         }
 
         if (this.usageTracker && (!this.usageTracker.canUseTianditu('vector') || !this.usageTracker.canUseTianditu('label'))) {
-            console.warn('天地图API配额已用完，切换到英文地图');
+            logger.warn('天地图API配额已用完，切换到英文地图');
             this.createEnglishLayers();
             return;
         }
@@ -230,7 +230,7 @@ class HeatmapRenderer {
         const labelUrl = MAP_CONFIG.buildTiandituUrl('vector_label');
 
         if (!vectorUrl || !labelUrl) {
-            console.warn('无法构建天地图URL，切换到英文地图');
+            logger.warn('无法构建天地图URL，切换到英文地图');
             this.createEnglishLayers();
             this.triggerApiKeyMissingEvent();
             return;
@@ -241,7 +241,7 @@ class HeatmapRenderer {
             attribution: '&copy; <a href="http://www.tianditu.gov.cn/">天地图</a>',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18,
-            onError: (e) => console.warn('天地图矢量底图加载失败:', e),
+            onError: (e) => logger.warn('天地图矢量底图加载失败:', e),
             onTileLoad: this.usageTracker ? () => this.usageTracker.trackVectorRequest() : null
         });
 
@@ -250,7 +250,7 @@ class HeatmapRenderer {
             attribution: '',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18,
-            onError: (e) => console.warn('天地图标注层加载失败:', e),
+            onError: (e) => logger.warn('天地图标注层加载失败:', e),
             onTileLoad: this.usageTracker ? () => this.usageTracker.trackLabelRequest() : null
         });
 
@@ -270,7 +270,7 @@ class HeatmapRenderer {
     createTiandituSatelliteLayers() {
         // 检查MAP_CONFIG是否可用
         if (typeof MAP_CONFIG === 'undefined') {
-            console.warn('MAP_CONFIG未加载，切换到英文地图');
+            logger.warn('MAP_CONFIG未加载，切换到英文地图');
             this.createEnglishLayers();
             this.triggerApiKeyMissingEvent();
             return;
@@ -278,14 +278,14 @@ class HeatmapRenderer {
 
         // 检查API密钥是否已配置
         if (!MAP_CONFIG.hasApiKey()) {
-            console.warn('未配置天地图API密钥，切换到英文地图');
+            logger.warn('未配置天地图API密钥，切换到英文地图');
             this.createEnglishLayers();
             this.triggerApiKeyMissingEvent();
             return;
         }
 
         if (this.usageTracker && (!this.usageTracker.canUseTianditu('image') || !this.usageTracker.canUseTianditu('label'))) {
-            console.warn('天地图API配额已用完，切换到英文地图');
+            logger.warn('天地图API配额已用完，切换到英文地图');
             this.createEnglishLayers();
             return;
         }
@@ -294,7 +294,7 @@ class HeatmapRenderer {
         const imageLabelUrl = MAP_CONFIG.buildTiandituUrl('image_label');
 
         if (!imageUrl || !imageLabelUrl) {
-            console.warn('无法构建天地图URL，切换到英文地图');
+            logger.warn('无法构建天地图URL，切换到英文地图');
             this.createEnglishLayers();
             this.triggerApiKeyMissingEvent();
             return;
@@ -305,7 +305,7 @@ class HeatmapRenderer {
             attribution: '&copy; <a href="http://www.tianditu.gov.cn/">天地图</a>',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18,
-            onError: (e) => console.warn('天地图影像底图加载失败:', e),
+            onError: (e) => logger.warn('天地图影像底图加载失败:', e),
             onTileLoad: this.usageTracker ? () => this.usageTracker.trackImageRequest() : null
         });
 
@@ -314,7 +314,7 @@ class HeatmapRenderer {
             attribution: '',
             subdomains: MAP_CONFIG.TIANDITU_SUBDOMAINS,
             maxZoom: 18,
-            onError: (e) => console.warn('天地图影像标注层加载失败:', e),
+            onError: (e) => logger.warn('天地图影像标注层加载失败:', e),
             onTileLoad: this.usageTracker ? () => this.usageTracker.trackLabelRequest() : null
         });
 
@@ -342,7 +342,7 @@ class HeatmapRenderer {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
             subdomains: 'abcd',
             maxZoom: 20,
-            onError: (e) => console.warn('英文地图瓦片加载失败:', e)
+            onError: (e) => logger.warn('英文地图瓦片加载失败:', e)
         });
 
         tileLayer.addTo(this.map);
@@ -417,7 +417,7 @@ class HeatmapRenderer {
      */
     renderHeatmap(points) {
         if (!points || points.length === 0) {
-            console.warn('没有轨迹点数据');
+            logger.warn('没有轨迹点数据');
             return;
         }
 
@@ -429,7 +429,7 @@ class HeatmapRenderer {
         if (this.useSpatialIndex) {
             // 构建空间索引
             this.spatialIndex = new HeatmapRenderer.SpatialIndex(points);
-            console.log(`✓ 已构建空间索引，共 ${points.length.toLocaleString()} 个点`);
+            logger.success(`✓ 已构建空间索引，共 ${points.length.toLocaleString()} 个点`);
             
             // 绑定地图移动事件，动态更新可见点
             this.bindMapMoveEvents();
@@ -447,12 +447,12 @@ class HeatmapRenderer {
                 if (bounds && bounds.getSouth && bounds.getNorth) {
                     const visiblePoints = this.spatialIndex.getPointsInBounds(bounds);
                     points = visiblePoints;
-                    console.log(`✓ 空间索引：当前视野内 ${visiblePoints.length.toLocaleString()} 个点`);
+                    logger.success(`✓ 空间索引：当前视野内 ${visiblePoints.length.toLocaleString()} 个点`);
                 } else {
-                    console.warn('地图边界未初始化，使用全部点');
+                    logger.warn('地图边界未初始化，使用全部点');
                 }
             } catch (error) {
-                console.warn('获取地图边界时出错，使用全部点:', error);
+                logger.warn('获取地图边界时出错，使用全部点:', error);
                 // 如果获取边界失败，使用全部点
             }
         } else {
@@ -484,7 +484,7 @@ class HeatmapRenderer {
             this.map.hasInitialBounds = true;
         }
 
-        console.log(`✓ 热力图渲染完成，共 ${points.length.toLocaleString()} 个点`);
+        logger.success(`✓ 热力图渲染完成，共 ${points.length.toLocaleString()} 个点`);
     }
 
     /**
@@ -578,7 +578,7 @@ class HeatmapRenderer {
      * 空间索引类 - 用于优化超大数据集的热力图渲染
      */
     static SpatialIndex = class {
-        constructor(points, cellSize = 0.01) {
+        constructor(points, cellSize = APP_CONFIG.SPATIAL_INDEX.CELL_SIZE) {
             this.cellSize = cellSize;
             this.grid = new Map();
             this.points = points;
@@ -618,7 +618,7 @@ class HeatmapRenderer {
             const maxLon = bounds.getEast();
             
             // 扩展边界，确保边缘的点也被包含（避免边界切割）
-            const padding = this.cellSize * 2;
+            const padding = this.cellSize * APP_CONFIG.SPATIAL_INDEX.PADDING_MULTIPLIER;
             const expandedMinLat = minLat - padding;
             const expandedMaxLat = maxLat + padding;
             const expandedMinLon = minLon - padding;
@@ -668,7 +668,7 @@ class HeatmapRenderer {
                 if (this.map && this.map.getBounds && this.useSpatialIndex) {
                     this.updateVisibleHeatmap();
                 }
-            }, 200); // 200ms防抖，给地图更多时间稳定
+            }, APP_CONFIG.DELAY.DEBOUNCE_MEDIUM);
         };
         
         this.map.on('moveend', this.updateVisibleHeatmapDebounced);
@@ -728,7 +728,7 @@ class HeatmapRenderer {
             this.heatLayer = L.heatLayer(visiblePoints, currentOptions);
             this.heatLayer.addTo(this.map);
         } catch (error) {
-            console.warn('更新可见热力图时出错:', error);
+            logger.warn('更新可见热力图时出错:', error);
             // 出错时不更新，保持当前状态
         }
     }
@@ -891,11 +891,11 @@ class HeatmapRenderer {
                 }).catch(error => {
                     // 清除超时
                     if (timeoutId) clearTimeout(timeoutId);
-                    console.error('导出地图失败:', error);
+                    logger.error('导出地图失败:', error);
                     
                     // 移动端：如果失败且未重试，尝试快速模式重试
                     if (isMobile && retryCount === 0 && !fastMode) {
-                        console.log('移动端导出失败，尝试快速模式重试...');
+                        logger.info('移动端导出失败，尝试快速模式重试...');
                         // 延迟后重试快速模式
                         setTimeout(() => {
                             this.exportMapAsImage(true, 1).then(resolve).catch(reject);
@@ -912,7 +912,7 @@ class HeatmapRenderer {
                 });
                 
             } catch (error) {
-                console.error('导出地图时出错:', error);
+                logger.error('导出地图时出错:', error);
                 reject(error);
             }
         });
@@ -1043,7 +1043,7 @@ class HeatmapRenderer {
                 return true;
             } else {
                 // 弹窗被阻止，尝试在当前窗口显示
-                console.warn('弹窗被阻止，尝试在当前页面显示图片');
+                logger.warn('弹窗被阻止，尝试在当前页面显示图片');
                 // 创建一个模态框显示图片
                 const modal = document.createElement('div');
                 modal.style.cssText = `
@@ -1073,7 +1073,7 @@ class HeatmapRenderer {
                 return true;
             }
         } catch (error) {
-            console.error('打开图片窗口失败:', error);
+            logger.error('打开图片窗口失败:', error);
             return false;
         }
     }
@@ -1117,10 +1117,10 @@ class HeatmapRenderer {
         } catch (error) {
             // 用户取消分享不算错误
             if (error.name === 'AbortError') {
-                console.log('用户取消了分享');
+                logger.debug('用户取消了分享');
                 return true; // 用户主动取消，视为成功
             }
-            console.log('Web Share API失败，使用备用方案:', error);
+            logger.debug('Web Share API失败，使用备用方案:', error);
         }
         return false;
     }
@@ -1206,7 +1206,7 @@ class HeatmapRenderer {
                     }
                 } catch (error) {
                     if (error.name !== 'AbortError') {
-                        console.error('分享失败:', error);
+                        logger.error('分享失败:', error);
                     }
                 }
             });
@@ -1238,7 +1238,7 @@ class HeatmapRenderer {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                console.log('✓ 图片下载成功:', filename);
+                logger.success('✓ 图片下载成功:', filename);
                 return;
             }
             
@@ -1267,16 +1267,16 @@ class HeatmapRenderer {
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                console.log('✓ 图片下载成功:', filename);
+                logger.success('✓ 图片下载成功:', filename);
                 return;
             } catch (e) {
                 // 如果下载失败，显示模态框
-                console.warn('下载失败，显示图片模态框:', e);
+                logger.warn('下载失败，显示图片模态框:', e);
                 this.showImageInModal(dataURL, filename, '长按图片保存');
                 return;
             }
         } catch (error) {
-            console.error('下载图片失败:', error);
+            logger.error('下载图片失败:', error);
             // 移动端失败时显示模态框而不是抛出错误
             if (this.isMobileDevice()) {
                 this.showImageInModal(dataURL, filename, '长按图片保存到相册');
@@ -1311,7 +1311,7 @@ class HeatmapRenderer {
             
             return dataURL;
         } catch (error) {
-            console.error('导出和下载失败:', error);
+            logger.error('导出和下载失败:', error);
             throw error;
         }
     }
