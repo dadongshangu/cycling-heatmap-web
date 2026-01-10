@@ -28,13 +28,13 @@
             <div class="left-panel">
                 <!-- File Upload Area -->
                 <div class="upload-section">
-                    <h3>📁 上传轨迹记录GPX</h3>
+                    <h3>📁 上传轨迹记录（GPX/FIT）</h3>
                     <div class="upload-area" id="uploadArea">
                         <div class="upload-content">
                             <div class="upload-icon">📁</div>
-                            <p class="upload-text">拖拽轨迹记录GPX到这里</p>
-                            <p class="upload-subtext">或点击选择文件</p>
-                            <input type="file" id="fileInput" multiple accept=".gpx,.GPX" style="display: none;">
+                            <p class="upload-text">拖拽轨迹记录到这里</p>
+                            <p class="upload-subtext">支持 GPX 和 FIT 格式</p>
+                            <input type="file" id="fileInput" multiple accept=".gpx,.GPX,.fit,.FIT" style="display: none;">
                             <button class="upload-btn" id="selectFileBtn">
                                 选择文件
                             </button>
@@ -67,7 +67,7 @@
                     <button class="generate-btn-large" id="generateBtn" disabled>
                         🗺️ 生成热力图
                     </button>
-                    <p class="generate-hint">上传轨迹记录GPX后点击生成</p>
+                    <p class="generate-hint">上传轨迹记录（GPX/FIT）后点击生成</p>
                 </div>
 
                 <!-- Controls Panel -->
@@ -239,7 +239,7 @@
             <div class="help-content">
                 <h3>🚀 快速开始</h3>
                 <ol>
-                    <li>拖拽或选择轨迹记录GPX上传</li>
+                    <li>拖拽或选择轨迹记录（GPX 或 FIT）上传</li>
                     <li>调整参数设置（可选）</li>
                     <li>点击"生成热力图"按钮</li>
                     <li>在地图上查看结果</li>
@@ -256,8 +256,9 @@
 
                 <h3>📁 支持的文件格式</h3>
                 <ul>
-                    <li>轨迹记录GPX (.gpx)</li>
-                    <li>支持批量上传多个文件</li>
+                    <li>轨迹记录GPX (.gpx) - GPS Exchange Format</li>
+                    <li>轨迹记录FIT (.fit) - Garmin 等码表常用格式</li>
+                    <li>支持批量上传多个文件（可混合 GPX 和 FIT 格式）</li>
                     <li>支持骑行、徒步、跑步等所有GPS轨迹</li>
                 </ul>
 
@@ -803,7 +804,7 @@
                         • 确保GPX文件已完全下载到本地，不是云存储中的占位符<br>
                         • 如果文件在云存储中，先下载到本地再选择<br>
                         • 尝试使用不同的文件管理器或浏览器<br>
-                        • 确保文件扩展名是 .gpx（不是 .gpx.txt 或其他）<br>
+                        • 确保文件扩展名是 .gpx 或 .fit（不是 .gpx.txt 或其他）<br>
                         • 如果问题持续，可以尝试将文件通过邮件发送给自己，然后从邮件中保存
                     </p>
                 </div>
@@ -870,12 +871,65 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
-    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+        // 在页面加载前过滤浏览器跟踪防护警告（不影响功能，这些警告是浏览器安全机制）
+        (function() {
+            // 保存原始方法
+            const originalWarn = console.warn;
+            const originalError = console.error;
+            const originalLog = console.log;
+            
+            // 重写 console.warn
+            console.warn = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('Tracking Prevention') || 
+                    message.includes('blocked access to storage') ||
+                    message.includes('TrackingPrevention')) {
+                    // 静默忽略这些警告，它们不影响功能
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+            
+            // 重写 console.error
+            console.error = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('Tracking Prevention') || 
+                    message.includes('blocked access to storage') ||
+                    message.includes('TrackingPrevention')) {
+                    // 静默忽略这些错误，它们不影响功能
+                    return;
+                }
+                originalError.apply(console, args);
+            };
+            
+            // 也过滤 console.log 中的相关消息
+            console.log = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('Tracking Prevention') || 
+                    message.includes('blocked access to storage') ||
+                    message.includes('TrackingPrevention')) {
+                    // 静默忽略
+                    return;
+                }
+                originalLog.apply(console, args);
+            };
+        })();
+    </script>
+    <!-- 使用 unpkg CDN，并添加错误处理 -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            onerror="console.error('Leaflet 库加载失败，请检查网络连接')"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
+            onerror="console.error('Leaflet.heat 库加载失败，请检查网络连接')"></script>
+    <!-- html2canvas 已改为延迟加载，仅在需要导出时加载 -->
     <script src="js/utils.js"></script>
     <script src="js/map-config.js"></script>
+    <!-- fit-file-parser 库（本地文件，需要先下载到 js/ 目录） -->
+    <!-- 如果库文件不存在，FITParser 会显示错误提示 -->
+    <script src="js/fit-file-parser.min.js" 
+            onerror="console.warn('fit-file-parser 库未找到，请参考 FIT_LIBRARY_SETUP.md 下载库文件')"></script>
     <script src="js/gpx-parser.js"></script>
+    <script src="js/fit-parser.js"></script>
     <script src="js/heatmap-renderer.js"></script>
     <script src="js/main.js"></script>
 </body>

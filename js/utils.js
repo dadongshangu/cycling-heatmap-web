@@ -74,6 +74,13 @@ class Logger {
      */
     error(...args) {
         if (this.shouldLog('error')) {
+            // 过滤掉浏览器跟踪防护警告（不影响功能）
+            const message = args.join(' ');
+            if (message.includes('Tracking Prevention') || 
+                message.includes('blocked access to storage')) {
+                // 这些警告不影响功能，静默忽略
+                return;
+            }
             console.error('[ERROR]', ...args);
         }
     }

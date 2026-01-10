@@ -28,6 +28,11 @@ class HeatmapRenderer {
         this.spatialIndexThreshold = 100000; // 超过10万点才启用空间索引
         this.updateVisibleHeatmapDebounced = null;
         
+        // html2canvas 延迟加载相关
+        this.html2canvasLoaded = false;
+        this.html2canvasLoading = false;
+        this.html2canvasLoadPromise = null;
+        
         this.initializeMap();
         this.bindAutoSwitchEvent();
     }
@@ -781,8 +786,21 @@ class HeatmapRenderer {
      * @returns {Promise<string>} Base64图片数据
      */
     async exportMapAsImage(fastMode = false, retryCount = 0) {
+        // 确保 html2canvas 已加载
+        try {
+            await this.loadHtml2Canvas();
+        } catch (error) {
+            return Promise.reject(new Error('导出功能加载失败: ' + (error.message || '未知错误')));
+        }
+
         return new Promise((resolve, reject) => {
             try {
+                // 再次验证 html2canvas 是否可用
+                if (typeof html2canvas === 'undefined') {
+                    reject(new Error('html2canvas 库未加载，无法导出'));
+                    return;
+                }
+
                 const mapContainer = this.map.getContainer();
                 const isMobile = this.isMobileDevice();
                 
@@ -933,6 +951,77 @@ class HeatmapRenderer {
      */
     isIOSDevice() {
         return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    }
+
+    /**
+     * 动态加载 html2canvas 库
+     * @returns {Promise<void>}
+     */
+    loadHtml2Canvas() {
+        // 如果已经加载，直接返回
+        if (this.html2canvasLoaded && typeof html2canvas !== 'undefined') {
+            return Promise.resolve();
+        }
+
+        // 如果正在加载，返回现有的 Promise
+        if (this.html2canvasLoading && this.html2canvasLoadPromise) {
+            return this.html2canvasLoadPromise;
+        }
+
+        // 开始加载
+        this.html2canvasLoading = true;
+        this.html2canvasLoadPromise = new Promise((resolve, reject) => {
+            // 检查是否已经存在（可能通过其他方式加载）
+            if (typeof html2canvas !== 'undefined') {
+                this.html2canvasLoaded = true;
+                this.html2canvasLoading = false;
+                resolve();
+                return;
+            }
+
+            // 创建 script 标签动态加载
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
+            script.async = true;
+            
+            // 设置超时（30秒）
+            const timeoutId = setTimeout(() => {
+                script.remove();
+                this.html2canvasLoading = false;
+                this.html2canvasLoadPromise = null;
+                reject(new Error('html2canvas 库加载超时，请检查网络连接'));
+            }, 30000);
+
+            // 加载成功
+            script.onload = () => {
+                clearTimeout(timeoutId);
+                // 验证库是否真的加载成功
+                if (typeof html2canvas !== 'undefined') {
+                    this.html2canvasLoaded = true;
+                    this.html2canvasLoading = false;
+                    logger.info('html2canvas 库加载成功');
+                    resolve();
+                } else {
+                    this.html2canvasLoading = false;
+                    this.html2canvasLoadPromise = null;
+                    reject(new Error('html2canvas 库加载失败：库未正确初始化'));
+                }
+            };
+
+            // 加载失败
+            script.onerror = () => {
+                clearTimeout(timeoutId);
+                script.remove();
+                this.html2canvasLoading = false;
+                this.html2canvasLoadPromise = null;
+                reject(new Error('html2canvas 库加载失败，请检查网络连接'));
+            };
+
+            // 添加到页面
+            document.head.appendChild(script);
+        });
+
+        return this.html2canvasLoadPromise;
     }
 
     /**

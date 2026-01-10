@@ -5,6 +5,7 @@
 class CyclingHeatmapApp {
     constructor() {
         this.gpxParser = new GPXParser();
+        this.fitParser = new FITParser();
         this.heatmapRenderer = null;
         this.loadedTracks = [];
         this.isProcessing = false;
@@ -84,6 +85,13 @@ class CyclingHeatmapApp {
             const errorMessage = event.error?.message || event.message || '';
             const errorSource = event.filename || '';
             
+            // 忽略浏览器跟踪防护警告（不影响功能）
+            if (errorMessage.includes('Tracking Prevention') || 
+                errorMessage.includes('blocked access to storage')) {
+                // 这些警告不影响功能，静默忽略
+                return;
+            }
+            
             // 忽略 leaflet-heat 库中的某些内部错误（如果图层正在更新）
             if (errorSource.includes('leaflet-heat') && 
                 (errorMessage.includes('getSize') || errorMessage.includes('null'))) {
@@ -159,8 +167,8 @@ class CyclingHeatmapApp {
             // 移动端：移除 accept 限制，避免文件显示为灰色
             fileInput.removeAttribute('accept');
         } else {
-            // PC端：保留 GPX 文件筛选，方便用户选择
-            fileInput.setAttribute('accept', '.gpx,.GPX');
+            // PC端：保留文件筛选，支持 GPX 和 FIT 格式，方便用户选择
+            fileInput.setAttribute('accept', '.gpx,.GPX,.fit,.FIT');
         }
     }
 
@@ -416,14 +424,17 @@ class CyclingHeatmapApp {
         const uploadArea = this.getElement('uploadArea');
         if (uploadArea) uploadArea.classList.remove('dragover');
         
-        const files = Array.from(e.dataTransfer.files).filter(file => 
-            file.name.toLowerCase().endsWith('.gpx')
-        );
+        const files = Array.from(e.dataTransfer.files).filter(file => {
+            const name = file.name.toLowerCase();
+            const ext = name.split('.').pop();
+            // 支持 .gpx 和 .fit 格式
+            return ext === 'gpx' || ext === 'fit';
+        });
         
         if (files.length > 0) {
             this.processFiles(files);
         } else {
-            this.showMessage('请选择轨迹记录GPX', 'warning');
+            this.showMessage('请选择轨迹记录文件（GPX 或 FIT 格式）', 'warning');
         }
     }
 
@@ -483,29 +494,32 @@ class CyclingHeatmapApp {
         }
         
         // 在 JavaScript 中验证文件类型（替代 accept 属性）
-        const gpxFiles = allFiles.filter(file => 
-            file.name.toLowerCase().endsWith('.gpx')
-        );
+        const supportedFiles = allFiles.filter(file => {
+            const name = file.name.toLowerCase();
+            const ext = name.split('.').pop();
+            // 支持 .gpx 和 .fit 格式
+            return ext === 'gpx' || ext === 'fit';
+        });
         
-        // 如果有非 GPX 文件，给出提示
-        if (gpxFiles.length === 0 && allFiles.length > 0) {
-            this.showMessage('请选择轨迹记录GPX文件（.gpx格式）', 'warning');
+        // 如果有不支持的文件，给出提示
+        if (supportedFiles.length === 0 && allFiles.length > 0) {
+            this.showMessage('请选择轨迹记录文件（.gpx 或 .fit 格式）', 'warning');
             return;
         }
         
         // 检查文件可读性（特别是移动端）
         const isMobile = this.isMobileDevice();
-        if (isMobile && gpxFiles.length > 0) {
+        if (isMobile && supportedFiles.length > 0) {
             this.showMessage('正在检查文件...', 'info');
             
             const readabilityResults = await Promise.all(
-                gpxFiles.map(file => this.checkFileReadability(file))
+                supportedFiles.map(file => this.checkFileReadability(file))
             );
             
             const readableFiles = [];
             const unreadableFiles = [];
             
-            gpxFiles.forEach((file, index) => {
+            supportedFiles.forEach((file, index) => {
                 if (readabilityResults[index].readable) {
                     readableFiles.push(file);
                 } else {
@@ -527,7 +541,7 @@ class CyclingHeatmapApp {
             }
         } else {
             // 桌面端直接处理
-            this.processFiles(gpxFiles);
+            this.processFiles(supportedFiles);
         }
     }
 
@@ -589,8 +603,53 @@ class CyclingHeatmapApp {
         this.showLoading(true);
         
         try {
-            // 解析文件
-            const results = await this.gpxParser.parseFiles(validFiles, this.updateProgress.bind(this));
+            // 根据文件扩展名分组
+            const gpxFiles = [];
+            const fitFiles = [];
+            const unsupportedFiles = [];
+            
+            validFiles.forEach(file => {
+                const name = file.name.toLowerCase();
+                const ext = name.split('.').pop();
+                if (ext === 'gpx') {
+                    gpxFiles.push(file);
+                } else if (ext === 'fit') {
+                    // 支持 .fit 格式
+                    fitFiles.push(file);
+                } else {
+                    unsupportedFiles.push(file);
+                }
+            });
+            
+            if (unsupportedFiles.length > 0) {
+                logger.warn('不支持的文件格式:', unsupportedFiles.map(f => f.name));
+                this.showMessage(
+                    `${unsupportedFiles.length} 个文件格式不支持（仅支持 .gpx 和 .fit 格式）`,
+                    'warning'
+                );
+            }
+            
+            // 分别解析 GPX 和 FIT 文件
+            const allResults = [];
+            
+            if (gpxFiles.length > 0) {
+                const gpxResults = await this.gpxParser.parseFiles(gpxFiles, this.updateProgress.bind(this));
+                // 使用循环添加，避免展开操作符导致栈溢出
+                for (let i = 0; i < gpxResults.length; i++) {
+                    allResults.push(gpxResults[i]);
+                }
+            }
+            
+            if (fitFiles.length > 0) {
+                // 使用内置的简化版 FIT 解析器（不依赖外部库）
+                const fitResults = await this.fitParser.parseFiles(fitFiles, this.updateProgress.bind(this));
+                // 使用循环添加，避免展开操作符导致栈溢出
+                for (let i = 0; i < fitResults.length; i++) {
+                    allResults.push(fitResults[i]);
+                }
+            }
+            
+            const results = allResults;
             
             // 过滤成功解析的文件
             const successfulTracks = results.filter(result => !result.error);
@@ -599,6 +658,7 @@ class CyclingHeatmapApp {
             // 分析失败原因
             const permissionErrors = [];
             const formatErrors = [];
+            const libraryErrors = []; // FIT 库加载失败
             const otherErrors = [];
             
             failedTracks.forEach(track => {
@@ -606,6 +666,9 @@ class CyclingHeatmapApp {
                 if (errorMsg.includes('permission') || errorMsg.includes('权限') || 
                     errorMsg.includes('无法读取') || errorMsg.includes('read')) {
                     permissionErrors.push(track);
+                } else if (errorMsg.includes('fit解析库') || errorMsg.includes('fit 解析库') || 
+                          errorMsg.includes('fit-file-parser') || errorMsg.includes('fit解析库未加载')) {
+                    libraryErrors.push(track);
                 } else if (errorMsg.includes('format') || errorMsg.includes('格式') || 
                           errorMsg.includes('invalid') || errorMsg.includes('parse')) {
                     formatErrors.push(track);
@@ -613,6 +676,11 @@ class CyclingHeatmapApp {
                     otherErrors.push(track);
                 }
             });
+            
+            // 如果有 FIT 库加载失败的文件，已经在上面显示过提示了，这里只记录日志
+            if (libraryErrors.length > 0) {
+                logger.warn(`FIT 库加载失败，影响 ${libraryErrors.length} 个文件`);
+            }
             
             if (successfulTracks.length > 0) {
                 this.loadedTracks = this.loadedTracks.concat(successfulTracks);
@@ -632,7 +700,7 @@ class CyclingHeatmapApp {
                     this.showMobileFileHelp();
                     this.showMessage('文件无法读取，可能是权限问题。请查看帮助提示。', 'error');
                 } else if (formatErrors.length > 0) {
-                    this.showMessage('文件格式错误，请确保选择的是有效的GPX文件', 'error');
+                    this.showMessage('文件格式错误，请确保选择的是有效的GPX或FIT文件', 'error');
                 } else {
                     this.showMessage('没有成功解析的文件', 'error');
                 }
@@ -737,18 +805,89 @@ class CyclingHeatmapApp {
      * 更新统计信息
      */
     updateStatistics() {
-        const stats = this.gpxParser.getStatistics();
+        // 合并两个解析器的统计信息
+        const gpxStats = this.gpxParser.getStatistics();
+        const fitStats = this.fitParser.getStatistics();
+        
+        const combinedStats = {
+            totalPoints: gpxStats.totalPoints + fitStats.totalPoints,
+            totalDistance: gpxStats.totalDistance + fitStats.totalDistance,
+            dateRange: this.combineDateRanges(gpxStats.dateRange, fitStats.dateRange)
+        };
         
         const fileCountEl = this.getElement('fileCount');
         const pointCountEl = this.getElement('pointCount');
         const totalDistanceEl = this.getElement('totalDistance');
         
         if (fileCountEl) fileCountEl.textContent = this.loadedTracks.length;
-        if (pointCountEl) pointCountEl.textContent = stats.totalPoints.toLocaleString();
-        if (totalDistanceEl) totalDistanceEl.textContent = stats.totalDistance + ' km';
-        document.getElementById('dateRangeText').textContent = this.gpxParser.getDateRangeText();
+        if (pointCountEl) pointCountEl.textContent = combinedStats.totalPoints.toLocaleString();
+        if (totalDistanceEl) totalDistanceEl.textContent = combinedStats.totalDistance + ' km';
+        
+        // 格式化日期范围文本
+        const dateRangeText = this.formatDateRangeText(combinedStats.dateRange);
+        const dateRangeTextEl = document.getElementById('dateRangeText');
+        if (dateRangeTextEl) dateRangeTextEl.textContent = dateRangeText;
         
         document.getElementById('statsSection').style.display = 'block';
+    }
+
+    /**
+     * 合并两个日期范围
+     * @param {Object} range1 - 第一个日期范围
+     * @param {Object} range2 - 第二个日期范围
+     * @returns {Object} 合并后的日期范围
+     */
+    combineDateRanges(range1, range2) {
+        const combined = { min: null, max: null };
+        
+        const dates = [];
+        if (range1.min) dates.push(range1.min);
+        if (range1.max) dates.push(range1.max);
+        if (range2.min) dates.push(range2.min);
+        if (range2.max) dates.push(range2.max);
+        
+        if (dates.length > 0) {
+            // 使用循环计算最小最大值，避免展开操作符导致栈溢出
+            let minTime = dates[0].getTime();
+            let maxTime = dates[0].getTime();
+            for (let i = 1; i < dates.length; i++) {
+                const time = dates[i].getTime();
+                if (time < minTime) minTime = time;
+                if (time > maxTime) maxTime = time;
+            }
+            combined.min = new Date(minTime);
+            combined.max = new Date(maxTime);
+        }
+        
+        return combined;
+    }
+
+    /**
+     * 格式化日期范围文本
+     * @param {Object} dateRange - 日期范围对象
+     * @returns {string} 格式化的日期范围文本
+     */
+    formatDateRangeText(dateRange) {
+        if (!dateRange.min || !dateRange.max) {
+            return '-';
+        }
+
+        const formatDate = (date) => {
+            return date.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+        };
+
+        const minStr = formatDate(dateRange.min);
+        const maxStr = formatDate(dateRange.max);
+
+        if (minStr === maxStr) {
+            return minStr;
+        } else {
+            return `${minStr} ~ ${maxStr}`;
+        }
     }
 
     /**
@@ -766,6 +905,7 @@ class CyclingHeatmapApp {
         // 清除数据
         this.loadedTracks = [];
         this.gpxParser.clear();
+        this.fitParser.clear();
         
         // 清除热力图和释放内存
         if (this.heatmapRenderer) {
@@ -1010,7 +1150,9 @@ class CyclingHeatmapApp {
                 
                 // 更新进度提示
                 if (tracks.length > 1) {
-                    this.showLoading(true, `正在处理轨迹 ${trackIndex + 1}/${tracks.length}...`);
+                    const progressText = `正在处理轨迹 ${trackIndex + 1}/${tracks.length}...`;
+                    this.showLoading(true, progressText);
+                    logger.debug(progressText);
                 }
                 
                 // 根据日期范围过滤当前轨迹的点
@@ -1023,30 +1165,78 @@ class CyclingHeatmapApp {
                     })
                     .map(point => [point.lat, point.lon]);
                 
+                // 记录当前轨迹的点数，用于调试
+                if (filteredTrackPoints.length > 0) {
+                    logger.debug(`轨迹 ${trackIndex + 1}: ${filteredTrackPoints.length} 个点`);
+                }
+                
                 if (filteredTrackPoints.length > 0) {
                     totalBeforeSampling += filteredTrackPoints.length;
                     
                     // 对当前轨迹段进行采样（如果需要）
                     let sampledPoints = filteredTrackPoints;
-                    if (filteredTrackPoints.length > maxPoints / tracks.length) {
-                        // 为每个轨迹段分配合理的点数配额
-                        const trackMaxPoints = Math.max(1000, Math.floor(maxPoints / tracks.length));
-                        sampledPoints = this.samplePoints(filteredTrackPoints, trackMaxPoints);
+                    
+                    // 性能优化：如果点数太多，直接进行均匀采样，跳过Douglas-Peucker算法
+                    const trackMaxPoints = Math.max(1000, Math.floor(maxPoints / tracks.length));
+                    if (filteredTrackPoints.length > trackMaxPoints) {
+                        // 如果点数超过配额，直接进行快速均匀采样
+                        if (filteredTrackPoints.length > 10000) {
+                            // 如果点数超过10000，使用更激进的采样策略
+                            logger.debug(`轨迹 ${trackIndex + 1}: 点数 ${filteredTrackPoints.length} 过多，使用快速采样`);
+                            sampledPoints = this.quickSample(filteredTrackPoints, trackMaxPoints);
+                        } else {
+                            // 使用智能采样（但限制Douglas-Peucker的尝试次数）
+                            sampledPoints = this.samplePointsFast(filteredTrackPoints, trackMaxPoints);
+                        }
                     }
                     
                     totalAfterSampling += sampledPoints.length;
                     
-                    // 对当前轨迹段进行插值（只在轨迹段内部插值，不跨轨迹段）
-                    const interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], APP_CONFIG.LIMITS.INTERPOLATION_THRESHOLD);
+                    // 智能插值：在点稀疏时进行插值，填充轨迹间隙
+                    let interpolatedPoints = sampledPoints;
+                    
+                    // 如果采样后的点数较少，进行插值
+                    if (sampledPoints.length < maxPoints * 0.7 && sampledPoints.length > 2) {
+                        // 计算平均相邻点距离
+                        let avgDistance = 0;
+                        for (let i = 0; i < sampledPoints.length - 1; i++) {
+                            // 使用GPXParser的haversineDistance方法
+                            const dist = this.gpxParser.haversineDistance(
+                                sampledPoints[i][0], sampledPoints[i][1],
+                                sampledPoints[i + 1][0], sampledPoints[i + 1][1]
+                            ) * 1000; // 转为米
+                            avgDistance += dist;
+                        }
+                        avgDistance /= (sampledPoints.length - 1);
+                        
+                        // 如果平均距离较大（> 50米），进行插值（降低阈值，填充更多稀疏区域）
+                        if (avgDistance > 50) {
+                            logger.debug(`轨迹 ${trackIndex + 1}: 平均相邻点距离=${avgDistance.toFixed(0)}米，进行插值填充`);
+                            // 使用较小的插值阈值，填充稀疏区域
+                            // 将米转换为度：1度约等于111公里，所以1米约等于0.000009度
+                            const interpolationThreshold = Math.min(avgDistance * 0.000009, 0.0008); // 约90米
+                            interpolatedPoints = this.interpolateTrackPoints([{ points: sampledPoints }], interpolationThreshold);
+                            logger.debug(`轨迹 ${trackIndex + 1}: 插值后点数 ${interpolatedPoints.length}`);
+                        } else {
+                            logger.debug(`轨迹 ${trackIndex + 1}: 平均相邻点距离=${avgDistance.toFixed(0)}米，点已足够密集，跳过插值`);
+                        }
+                    } else {
+                        logger.debug(`轨迹 ${trackIndex + 1}: 采样后点数 ${sampledPoints.length}，跳过插值`);
+                    }
                     
                     // 将当前轨迹段的点添加到最终数组
-                    finalPoints.push(...interpolatedPoints);
+                    // 使用循环添加，避免展开操作符导致栈溢出
+                    for (let i = 0; i < interpolatedPoints.length; i++) {
+                        finalPoints.push(interpolatedPoints[i]);
+                    }
                 }
                 
                 trackIndex++;
                 
                 // 使用setTimeout让出控制权，避免阻塞UI
-                setTimeout(processNextTrack, APP_CONFIG.DELAY.PROCESS_TRACK);
+                // 对于最后一条轨迹，稍微增加延迟，确保UI更新
+                const delay = trackIndex >= tracks.length ? 10 : APP_CONFIG.DELAY.PROCESS_TRACK;
+                setTimeout(processNextTrack, delay);
             };
             
             // 开始处理
@@ -1063,10 +1253,24 @@ class CyclingHeatmapApp {
     async filterPointsAsync(tracks, days) {
         return new Promise((resolve) => {
             setTimeout(() => {
+                // 统一使用GPX解析器的filterByDateRange方法
+                // 因为GPX和FIT解析器返回的数据格式是统一的，所以可以通用
                 const filteredPoints = this.gpxParser.filterByDateRange(tracks, days);
                 resolve(filteredPoints);
             }, 0);
         });
+    }
+    
+    /**
+     * 统一的日期范围过滤方法（支持GPX和FIT文件）
+     * @param {Array} tracks - 轨迹数组（可能包含GPX和FIT文件）
+     * @param {number} days - 天数（0表示不过滤）
+     * @returns {Array} 过滤后的轨迹点数组 [[lat, lon], ...]
+     */
+    filterTracksByDateRange(tracks, days) {
+        // 由于GPX和FIT解析器返回的数据格式是统一的，可以使用任一解析器的方法
+        // 优先使用GPX解析器的方法（因为它是主要格式）
+        return this.gpxParser.filterByDateRange(tracks, days);
     }
 
     /**
@@ -1174,6 +1378,7 @@ class CyclingHeatmapApp {
         }
         
         const allInterpolatedPoints = [];
+        const MAX_INTERPOLATED_POINTS = 5000; // 适度的最大插值点数，填充稀疏区域
         
         // 对每个轨迹段分别进行插值
         for (let trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
@@ -1188,12 +1393,30 @@ class CyclingHeatmapApp {
                 continue;
             }
             
-            // 在当前轨迹段内进行插值
-            const interpolatedPoints = [points[0]]; // 保留第一个点
+            // 性能优化：如果点数太多，先进行采样
+            let pointsToInterpolate = points;
+            if (points.length > 2000) {
+                // 如果点数超过2000，先采样到2000个点
+                pointsToInterpolate = this.samplePoints(points, 2000);
+            }
             
-            for (let i = 1; i < points.length; i++) {
-                const prevPoint = points[i - 1];
-                const currPoint = points[i];
+            // 在当前轨迹段内进行插值
+            const interpolatedPoints = [pointsToInterpolate[0]]; // 保留第一个点
+            
+            for (let i = 1; i < pointsToInterpolate.length; i++) {
+                // 性能优化：如果插值后的点已经很多，跳过后续插值
+                if (allInterpolatedPoints.length + interpolatedPoints.length >= MAX_INTERPOLATED_POINTS) {
+                    // 添加剩余的点，不进行插值
+                    for (let k = i; k < pointsToInterpolate.length; k++) {
+                        const point = pointsToInterpolate[k];
+                        const p = Array.isArray(point) ? point : [point.lat, point.lon];
+                        interpolatedPoints.push(p);
+                    }
+                    break;
+                }
+                
+                const prevPoint = pointsToInterpolate[i - 1];
+                const currPoint = pointsToInterpolate[i];
                 
                 // 确保点是数组格式 [lat, lon]
                 const prev = Array.isArray(prevPoint) ? prevPoint : [prevPoint.lat, prevPoint.lon];
@@ -1206,12 +1429,20 @@ class CyclingHeatmapApp {
                 
                 // 如果距离超过阈值，进行插值
                 if (distance > maxDistance) {
-                    // 计算需要插入的点数
-                    const numInterpolated = Math.ceil(distance / maxDistance);
+                    // 计算需要插入的点数，但限制最大插值点数
+                    const remainingCapacity = MAX_INTERPOLATED_POINTS - allInterpolatedPoints.length - interpolatedPoints.length;
+                    const numInterpolated = Math.min(
+                        Math.ceil(distance / maxDistance),
+                        Math.max(1, Math.floor(remainingCapacity / (pointsToInterpolate.length - i)))
+                    );
+                    
+                    // 限制单次插值的点数，但允许更多点以填充稀疏区域
+                    const maxSingleInterpolation = 8; // 单次最多插入8个点
+                    const actualInterpolated = Math.min(numInterpolated, maxSingleInterpolation);
                     
                     // 在两点之间插入中间点
-                    for (let j = 1; j <= numInterpolated; j++) {
-                        const ratio = j / (numInterpolated + 1);
+                    for (let j = 1; j <= actualInterpolated; j++) {
+                        const ratio = j / (actualInterpolated + 1);
                         const interpolatedPoint = [
                             prev[0] + latDiff * ratio,
                             prev[1] + lonDiff * ratio
@@ -1225,12 +1456,69 @@ class CyclingHeatmapApp {
             }
             
             // 将当前轨迹段的插值点添加到总数组
-            allInterpolatedPoints.push(...interpolatedPoints);
+            // 使用循环添加，避免展开操作符导致栈溢出
+            for (let i = 0; i < interpolatedPoints.length; i++) {
+                allInterpolatedPoints.push(interpolatedPoints[i]);
+            }
         }
         
         return allInterpolatedPoints;
     }
 
+    /**
+     * 快速均匀采样（用于大量点的情况）
+     * @param {Array} points - 原始轨迹点 [[lat, lon], ...]
+     * @param {number} maxPoints - 最大点数
+     * @returns {Array} 采样后的轨迹点
+     */
+    quickSample(points, maxPoints) {
+        if (points.length <= maxPoints) {
+            return points;
+        }
+        
+        const sampledPoints = [];
+        const step = points.length / maxPoints;
+        
+        // 确保保留第一个和最后一个点
+        sampledPoints.push(points[0]);
+        
+        for (let i = step; i < points.length - step; i += step) {
+            sampledPoints.push(points[Math.floor(i)]);
+        }
+        
+        // 确保保留最后一个点
+        if (points.length > 1) {
+            sampledPoints.push(points[points.length - 1]);
+        }
+        
+        return sampledPoints;
+    }
+    
+    /**
+     * 快速采样（限制Douglas-Peucker算法的使用）
+     * @param {Array} points - 原始轨迹点 [[lat, lon], ...]
+     * @param {number} maxPoints - 最大点数
+     * @returns {Array} 采样后的轨迹点
+     */
+    samplePointsFast(points, maxPoints) {
+        if (points.length <= maxPoints) {
+            return points;
+        }
+        
+        // 如果点数不是特别多，尝试一次Douglas-Peucker简化
+        if (points.length < 5000) {
+            const tolerance = 0.0001; // 使用较大的容差，快速简化
+            const simplified = this.simplifyTrack(points, tolerance);
+            
+            if (simplified.length <= maxPoints) {
+                return simplified;
+            }
+        }
+        
+        // 如果Douglas-Peucker简化后仍然超过最大点数，或点数太多，直接均匀采样
+        return this.quickSample(points, maxPoints);
+    }
+    
     /**
      * 对轨迹点进行智能采样，减少数据量
      * 优先使用Douglas-Peucker算法保持轨迹形状，如果还不够则进行均匀采样
@@ -1243,29 +1531,32 @@ class CyclingHeatmapApp {
             return points;
         }
         
+        // 对于大量点，直接使用快速采样
+        if (points.length > 5000) {
+            return this.quickSample(points, maxPoints);
+        }
+        
         // 首先尝试使用Douglas-Peucker算法简化
         // 从较小的容差开始，逐步增大直到点数符合要求
-        let tolerance = 0.00001; // 初始容差（约1米）- 这个值较小，保持原值
+        let tolerance = 0.00001; // 初始容差（约1米）
         let simplified = points;
         let attempts = 0;
-        const maxAttempts = 10;
+        const maxAttempts = 5; // 减少尝试次数，避免卡死
         
         while (simplified.length > maxPoints && attempts < maxAttempts) {
             simplified = this.simplifyTrack(points, tolerance);
             tolerance *= 2; // 增大容差
             attempts++;
+            
+            // 如果简化后点数仍然很多，提前退出
+            if (simplified.length > maxPoints * 2) {
+                break;
+            }
         }
         
         // 如果Douglas-Peucker简化后仍然超过最大点数，进行均匀采样
         if (simplified.length > maxPoints) {
-            const sampledPoints = [];
-            const step = simplified.length / maxPoints;
-            
-            for (let i = 0; i < simplified.length; i += step) {
-                sampledPoints.push(simplified[Math.floor(i)]);
-            }
-            
-            return sampledPoints;
+            return this.quickSample(simplified, maxPoints);
         }
         
         return simplified;
@@ -1293,7 +1584,8 @@ class CyclingHeatmapApp {
         if (this.loadedTracks.length === 0) return;
         
         const dateRange = parseInt(document.getElementById('dateRange').value);
-        const filteredPoints = this.gpxParser.filterByDateRange(this.loadedTracks, dateRange);
+        // 使用统一的过滤方法，支持GPX和FIT文件
+        const filteredPoints = this.filterTracksByDateRange(this.loadedTracks, dateRange);
         
         if (filteredPoints.length > 0) {
             this.heatmapRenderer.renderHeatmap(filteredPoints);
@@ -1315,6 +1607,23 @@ class CyclingHeatmapApp {
         try {
             // 检测是否为移动设备（复用heatmapRenderer的方法）
             const isMobile = this.heatmapRenderer.isMobileDevice();
+            
+            // 检查 html2canvas 是否已加载，如果未加载则显示加载提示
+            if (!this.heatmapRenderer.html2canvasLoaded) {
+                this.showLoading(true, '正在加载导出功能...');
+                try {
+                    await this.heatmapRenderer.loadHtml2Canvas();
+                } catch (loadError) {
+                    this.showLoading(false);
+                    const errorMsg = loadError.message || '未知错误';
+                    this.showMessage('导出功能加载失败: ' + errorMsg + '。请检查网络连接或使用截屏功能', 'error');
+                    // 移动端显示截屏指南
+                    if (isMobile) {
+                        this.showScreenshotGuide();
+                    }
+                    return;
+                }
+            }
             
             // PC端：完全使用原有逻辑（保持不变）
             if (!isMobile) {

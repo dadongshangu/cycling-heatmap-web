@@ -248,6 +248,56 @@ function extractTrackPoints(gpxDoc) {
 
 // 数据清洗
 function cleanTrackData(points) {
+    // 过滤无效坐标
+    // 处理重复点
+    // 数据标准化
+}
+```
+
+### 3. FIT解析器 (fit-parser.js)
+
+#### 核心职责
+- 解析FIT文件的二进制结构
+- 提取GPS轨迹点（支持semicircles和degrees格式）
+- 处理时间戳和海拔信息
+- 智能坐标格式检测和离群点过滤
+
+#### 关键函数
+```javascript
+// 主解析函数
+async parseFile(file) {
+    // 读取文件为ArrayBuffer
+    // 尝试使用fit-file-parser库解析
+    // 如果库不可用，降级到手动解析
+    // 返回解析后的数据
+}
+
+// 手动FIT文件解析
+parseFITFile(data) {
+    // 解析FIT文件头（14字节）
+    // 解析消息定义和数据记录
+    // 提取GPS字段（position_lat, position_long）
+    // 支持所有消息类型（不限制消息类型20）
+}
+
+// 坐标格式检测和转换
+extractTrackPoints(fitData, filename) {
+    // 收集所有GPS坐标
+    // 智能检测坐标格式（semicircles vs degrees）
+    // 转换坐标到度数格式
+    // 全局离群点检测和过滤
+    // 相邻点距离检测和过滤
+    // 返回有效的轨迹点
+}
+
+// semicircles转度数
+semicirclesToDegrees(semicircles) {
+    // FIT标准格式：semicircles * (180 / 2^31)
+    // 保留6位小数精度
+}
+
+// 数据清洗
+function cleanTrackData(points) {
     // 去除无效坐标
     // 过滤异常点
     // 时间范围过滤
@@ -270,7 +320,7 @@ function cleanTrackData(points) {
 </gpx>
 ```
 
-### 3. 热力图渲染器 (heatmap-renderer.js)
+### 4. 热力图渲染器 (heatmap-renderer.js)
 
 #### 核心职责
 - 处理轨迹数据
