@@ -299,6 +299,75 @@
                     <input type="text" id="guideSearch" placeholder="🔍 搜索你的设备或应用..." onkeyup="filterGuide()">
                 </div>
 
+                <!-- Strava（推荐） -->
+                <div class="guide-section" data-keywords="strava 斯特拉瓦 码表同步 批量导出 免费版">
+                    <h3>📱 Strava（推荐）</h3>
+                    
+                    <div class="device-item">
+                        <p style="background: #e7f3ff; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #17a2b8; color: #495057; line-height: 1.6;">
+                            <strong>💡 为什么推荐Strava？</strong><br>
+                            大部分码表（包括迈金、iGPSPORT、Garmin、Wahoo等）都支持将轨迹自动同步到Strava，即使是免费版Strava也完全支持此功能。通过Strava可以方便地批量导出所有历史轨迹记录。
+                        </p>
+                        
+                        <h5>📥 单个活动导出</h5>
+                        <ol>
+                            <li>打开Strava网站（<a href="https://www.strava.com" target="_blank">www.strava.com</a>）并登录</li>
+                            <li>进入要导出的活动详情页</li>
+                            <li>点击右上角"..."菜单</li>
+                            <li>选择"导出GPX"即可下载单个活动的GPX文件</li>
+                        </ol>
+                        
+                        <h5>📦 批量导出所有轨迹（推荐）</h5>
+                        <p><strong>此方法可以一次性下载所有历史轨迹记录，非常适合需要导出大量轨迹的用户。</strong></p>
+                        <ol>
+                            <li><strong>进入删除账户页面：</strong>
+                                <ul>
+                                    <li>访问 <a href="https://www.strava.com/athlete/delete_your_account" target="_blank">https://www.strava.com/athlete/delete_your_account</a></li>
+                                    <li>⚠️ <strong>注意：</strong>这只是进入数据导出页面，<strong>不会真的删除您的账户</strong></li>
+                                </ul>
+                            </li>
+                            <li><strong>请求数据导出：</strong>
+                                <ul>
+                                    <li>在页面中找到"下载或删除你的账户"选项</li>
+                                    <li>点击"请求数据导出"</li>
+                                    <li>Strava会开始准备您的所有数据（包括所有轨迹记录）</li>
+                                </ul>
+                            </li>
+                            <li><strong>接收邮件：</strong>
+                                <ul>
+                                    <li>Strava会在1-2天内通过邮件发送下载链接</li>
+                                    <li>检查您的注册邮箱，找到Strava发送的邮件</li>
+                                    <li>点击邮件中的下载链接</li>
+                                </ul>
+                            </li>
+                            <li><strong>下载并解压缩：</strong>
+                                <ul>
+                                    <li>下载的文件是一个压缩包，包含所有轨迹记录</li>
+                                    <li>解压缩后，您会看到很多 <code>*.fit.gz</code> 格式的文件</li>
+                                    <li>这些是GZIP压缩的FIT格式文件，需要再次解压缩</li>
+                                </ul>
+                            </li>
+                            <li><strong>批量解压缩.fit.gz文件：</strong>
+                                <ul>
+                                    <li><strong>Windows用户：</strong>可以使用7-Zip、WinRAR等工具批量解压缩</li>
+                                    <li><strong>Mac用户：</strong>可以使用The Unarchiver或命令行工具批量解压缩</li>
+                                    <li><strong>Linux用户：</strong>可以使用 <code>gunzip *.fit.gz</code> 命令批量解压缩</li>
+                                    <li>解压缩后会得到 <code>*.fit</code> 格式的文件</li>
+                                </ul>
+                            </li>
+                            <li><strong>上传到本应用：</strong>
+                                <ul>
+                                    <li>本应用支持直接上传 <code>.fit</code> 格式文件，无需转换为GPX</li>
+                                    <li>也可以使用在线工具将 <code>.fit</code> 转换为 <code>.gpx</code> 格式</li>
+                                </ul>
+                            </li>
+                        </ol>
+                        <p style="background: #fff3cd; padding: 10px; border-radius: 8px; margin: 10px 0; border-left: 4px solid #ffc107; color: #856404; font-size: 0.9em;">
+                            ⚠️ <strong>重要提示：</strong>批量导出功能不会删除您的Strava账户，只是下载您的数据。如果您只是想导出轨迹，完全不用担心账户安全问题。
+                        </p>
+                    </div>
+                </div>
+
                 <!-- 码表设备 -->
                 <div class="guide-section" data-keywords="码表 迈金 meilan igpsport garmin wahoo bryton 顽鹿竞技">
                     <h3>🚴 码表设备</h3>
@@ -422,33 +491,12 @@
                 </div>
 
                 <!-- 手机应用 -->
-                <div class="guide-section" data-keywords="手机 app strava 骑记 行者 咕咚 keep 顽鹿竞技 两步路 六只脚 户外助手 悦跑圈 徒步 跑步">
+                <div class="guide-section" data-keywords="手机 app 骑记 行者 咕咚 keep 顽鹿竞技 两步路 六只脚 户外助手 悦跑圈 徒步 跑步">
                     <h3>📱 手机应用</h3>
                     
                     <div class="device-group">
                         <h4>🌍 国际应用</h4>
                         
-                        <div class="device-item">
-                            <h5>📱 Strava</h5>
-                            <ol>
-                                <li><strong>单个活动导出:</strong>
-                                    <ul>
-                                        <li>打开Strava网站</li>
-                                        <li>进入活动详情页</li>
-                                        <li>点击右上角"..."菜单</li>
-                                        <li>选择"导出GPX"</li>
-                                    </ul>
-                                </li>
-                                <li><strong>批量导出:</strong>
-                                    <ul>
-                                        <li>进入设置 → 隐私控制</li>
-                                        <li>点击"下载或删除你的账户"</li>
-                                        <li>请求数据导出（包含所有轨迹记录GPX）</li>
-                                    </ul>
-                                </li>
-                            </ol>
-                        </div>
-
                         <div class="device-item">
                             <h5>📱 Komoot / MapMyRide</h5>
                             <ol>
