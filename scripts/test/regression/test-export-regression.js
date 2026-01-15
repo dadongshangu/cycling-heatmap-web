@@ -31,13 +31,13 @@ runner.test('导出功能回归: exportMapAsImage方法应该直接使用html2ca
     runner.assert(hasDirectHtml2Canvas, '应该直接使用html2canvas函数');
 });
 
-runner.test('导出功能回归: 移动端正常模式imageTimeout应该优化为8000', () => {
+runner.test('导出功能回归: 移动端正常模式imageTimeout应该是12000', () => {
     const content = fs.readFileSync(heatmapRendererPath, 'utf8');
     
-    // 查找移动端正常模式配置（已更新为优化配置）
-    const mobileConfigStart = content.indexOf('正常模式：scale=1.0（高质量），优化配置以提升速度');
+    // 查找移动端正常模式配置（回退到原始配置）
+    const mobileConfigStart = content.indexOf('正常模式：scale=1.0（高质量），与之前能工作的版本一致');
     if (mobileConfigStart === -1) {
-        runner.assert(false, '找不到移动端优化配置');
+        runner.assert(false, '找不到移动端正常模式配置');
         return;
     }
     
@@ -48,19 +48,19 @@ runner.test('导出功能回归: 移动端正常模式imageTimeout应该优化�
     const timeoutMatch = mobileConfigBlock.match(/imageTimeout:\s*(\d+)/);
     if (timeoutMatch) {
         const timeout = parseInt(timeoutMatch[1]);
-        runner.assert(timeout === 8000, `移动端正常模式imageTimeout应该优化为8000（从12秒优化），当前是${timeout}`);
+        runner.assert(timeout === 12000, `移动端正常模式imageTimeout应该是12000（回退到原始配置），当前是${timeout}`);
     } else {
         runner.assert(false, '找不到移动端正常模式imageTimeout设置');
     }
 });
 
-runner.test('导出功能回归: 移动端正常模式应该有ignoreElements优化', () => {
+runner.test('导出功能回归: 移动端正常模式不应该有ignoreElements', () => {
     const content = fs.readFileSync(heatmapRendererPath, 'utf8');
     
-    // 查找移动端正常模式配置（已更新为优化配置）
-    const mobileConfigStart = content.indexOf('正常模式：scale=1.0（高质量），优化配置以提升速度');
+    // 查找移动端正常模式配置（回退到原始配置）
+    const mobileConfigStart = content.indexOf('正常模式：scale=1.0（高质量），与之前能工作的版本一致');
     if (mobileConfigStart === -1) {
-        runner.assert(false, '找不到移动端优化配置');
+        runner.assert(false, '找不到移动端正常模式配置');
         return;
     }
     
@@ -68,9 +68,9 @@ runner.test('导出功能回归: 移动端正常模式应该有ignoreElements优
     const nextBlock = content.indexOf('}', mobileConfigStart + 50);
     const mobileConfigBlock = content.substring(mobileConfigStart, nextBlock !== -1 ? nextBlock : content.length);
     
-    // 移动端正常模式应该有ignoreElements（性能优化）
+    // 移动端正常模式不应该有ignoreElements（回退到原始配置）
     const hasIgnoreElements = mobileConfigBlock.includes('ignoreElements');
-    runner.assert(hasIgnoreElements, '移动端正常模式应该有ignoreElements以提升速度');
+    runner.assert(!hasIgnoreElements, '移动端正常模式不应该有ignoreElements（回退到原始配置）');
 });
 
 runner.test('导出功能回归: PC端配置应该优化（性能优化选项）', () => {
@@ -202,24 +202,24 @@ runner.test('导出功能回归: index.html不应该引用fit-file-parser.min.js
     runner.assert(!hasFitParserRef, 'index.html不应该引用fit-file-parser.min.js（默认使用手动解析）');
 });
 
-runner.test('导出功能回归: PC端导出延迟应该优化（100ms）', () => {
+runner.test('导出功能回归: PC端导出延迟应该是200ms', () => {
     const mainContent = fs.readFileSync(mainJsPath, 'utf8');
     
-    // 直接查找setTimeout(resolve, 100)（PC端优化后的延迟）
-    const has100msDelay = mainContent.includes('setTimeout(resolve, 100)') || 
-                          mainContent.includes('setTimeout(resolve,100)') ||
-                          /setTimeout\s*\([^,]+,\s*100\s*\)/.test(mainContent);
-    runner.assert(has100msDelay, 'PC端导出延迟应该是100ms（优化后）');
-});
-
-runner.test('导出功能回归: 移动端导出延迟应该优化（200ms）', () => {
-    const mainContent = fs.readFileSync(mainJsPath, 'utf8');
-    
-    // 直接查找setTimeout(resolve, 200)（移动端优化后的延迟）
+    // 直接查找setTimeout(resolve, 200)（PC端延迟）
     const has200msDelay = mainContent.includes('setTimeout(resolve, 200)') || 
                           mainContent.includes('setTimeout(resolve,200)') ||
                           /setTimeout\s*\([^,]+,\s*200\s*\)/.test(mainContent);
-    runner.assert(has200msDelay, '移动端导出延迟应该是200ms（优化后）');
+    runner.assert(has200msDelay, 'PC端导出延迟应该是200ms');
+});
+
+runner.test('导出功能回归: 移动端导出延迟应该是500ms', () => {
+    const mainContent = fs.readFileSync(mainJsPath, 'utf8');
+    
+    // 直接查找setTimeout(resolve, 500)（移动端原始延迟）
+    const has500msDelay = mainContent.includes('setTimeout(resolve, 500)') || 
+                          mainContent.includes('setTimeout(resolve,500)') ||
+                          /setTimeout\s*\([^,]+,\s*500\s*\)/.test(mainContent);
+    runner.assert(has500msDelay, '移动端导出延迟应该是500ms（回退到原始配置）');
 });
 
 runner.test('导出功能回归: PC端html2canvas应该配置性能优化选项', () => {
@@ -244,13 +244,13 @@ runner.test('导出功能回归: PC端html2canvas应该配置性能优化选项'
     runner.assert(hasIgnoreElements, 'PC端应该配置ignoreElements以忽略不必要元素');
 });
 
-runner.test('导出功能回归: 移动端html2canvas应该配置性能优化选项', () => {
+runner.test('导出功能回归: 移动端html2canvas应该使用原始配置（无性能优化）', () => {
     const rendererContent = fs.readFileSync(heatmapRendererPath, 'utf8');
     
-    // 查找移动端正常模式html2canvas配置
-    const mobileConfigIndex = rendererContent.indexOf('正常模式：scale=1.0（高质量），优化配置以提升速度');
+    // 查找移动端正常模式html2canvas配置（回退到原始配置）
+    const mobileConfigIndex = rendererContent.indexOf('正常模式：scale=1.0（高质量），与之前能工作的版本一致');
     if (mobileConfigIndex === -1) {
-        runner.assert(false, '找不到移动端优化配置');
+        runner.assert(false, '找不到移动端正常模式配置');
         return;
     }
     
@@ -258,18 +258,18 @@ runner.test('导出功能回归: 移动端html2canvas应该配置性能优化选
     const nextBlock = rendererContent.indexOf('}', mobileConfigIndex + 100);
     const mobileConfigSection = rendererContent.substring(mobileConfigIndex, nextBlock !== -1 ? nextBlock : mobileConfigIndex + 500);
     
-    // 检查是否有性能优化选项
+    // 移动端正常模式不应该有性能优化选项（回退到原始配置）
     const hasForeignObjectDisabled = mobileConfigSection.includes('foreignObjectRendering: false');
-    runner.assert(hasForeignObjectDisabled, '移动端应该禁用foreignObjectRendering以提升速度');
+    runner.assert(!hasForeignObjectDisabled, '移动端正常模式不应该禁用foreignObjectRendering（回退到原始配置）');
     
     const hasIgnoreElements = mobileConfigSection.includes('ignoreElements');
-    runner.assert(hasIgnoreElements, '移动端应该配置ignoreElements以忽略不必要元素');
+    runner.assert(!hasIgnoreElements, '移动端正常模式不应该有ignoreElements（回退到原始配置）');
     
-    // 检查imageTimeout是否优化（应该是8000ms）
+    // 检查imageTimeout应该是12000ms（原始配置）
     const timeoutMatch = mobileConfigSection.match(/imageTimeout:\s*(\d+)/);
     if (timeoutMatch) {
         const timeout = parseInt(timeoutMatch[1]);
-        runner.assert(timeout === 8000, `移动端imageTimeout应该是8000ms（优化后），当前是${timeout}ms`);
+        runner.assert(timeout === 12000, `移动端imageTimeout应该是12000ms（回退到原始配置），当前是${timeout}ms`);
     } else {
         runner.assert(false, '找不到移动端imageTimeout设置');
     }

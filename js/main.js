@@ -1669,11 +1669,11 @@ class CyclingHeatmapApp {
                 }
             }
             
-            // PC端：优化导出流程以提升速度
+            // PC端：完全使用原有逻辑（保持不变）
             if (!isMobile) {
                 this.showLoading(true, '正在导出热力图...');
-                // 优化：减少延迟时间到100ms，地图通常已经渲染完成
-                await new Promise(resolve => setTimeout(resolve, 100));
+                // 减少延迟时间，从500ms降到200ms，提升响应速度
+                await new Promise(resolve => setTimeout(resolve, 200));
                 
                 // 增加超时时间到 30 秒，因为 html2canvas 处理大图可能需要更长时间
                 const totalTimeout = 30000;
@@ -1702,8 +1702,8 @@ class CyclingHeatmapApp {
             // 移动端：新的导出流程（优先Web Share API，保持高质量）
             this.showLoading(true, '正在生成高质量图片...');
             
-            // 优化：减少延迟时间到200ms，地图通常已经渲染完成
-            await new Promise(resolve => setTimeout(resolve, 200));
+            // 确保地图完全渲染
+            await new Promise(resolve => setTimeout(resolve, 500));
             
             // 生成时间戳文件名
             const now = new Date();

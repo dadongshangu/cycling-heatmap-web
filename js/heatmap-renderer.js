@@ -895,7 +895,7 @@ class HeatmapRenderer {
                             }
                         };
                     } else {
-                        // 正常模式：scale=1.0（高质量），优化配置以提升速度
+                        // 正常模式：scale=1.0（高质量），与之前能工作的版本一致
                         scale = 1.0;
                         html2canvasOptions = {
                             useCORS: true,
@@ -909,17 +909,7 @@ class HeatmapRenderer {
                             scrollY: 0,
                             windowWidth: mapContainer.offsetWidth,
                             windowHeight: mapContainer.offsetHeight,
-                            imageTimeout: 8000, // 优化：减少图片加载超时时间（从12秒降到8秒）
-                            // 性能优化选项
-                            foreignObjectRendering: false, // 禁用foreignObject，提升速度
-                            // 忽略不必要的元素以提升速度
-                            ignoreElements: (element) => {
-                                // 忽略控制面板和指示器（保留地图控件）
-                                return element.classList && (
-                                    element.classList.contains('api-usage-panel') ||
-                                    element.classList.contains('map-type-indicator')
-                                );
-                            }
+                            imageTimeout: 12000 // 恢复为12秒（与之前能工作的版本一致）
                         };
                     }
                 } else {
@@ -967,30 +957,23 @@ class HeatmapRenderer {
                     };
                 }
                 
-                // 移动端：优化onclone处理
-                if (isMobile && html2canvasOptions.onclone) {
-                    // 移动端已有onclone配置，合并处理
-                    const originalOnclone = html2canvasOptions.onclone;
-                    html2canvasOptions.onclone = (clonedDoc) => {
-                        originalOnclone(clonedDoc);
-                        // 移动端快速模式：隐藏不必要的元素以提升速度
-                        if (fastMode) {
-                            const controls = clonedDoc.querySelectorAll('.leaflet-control-container, .api-usage-panel, .map-type-indicator');
-                            controls.forEach(el => {
-                                if (el) el.style.display = 'none';
-                            });
-                        }
-                    };
-                } else if (isMobile && !html2canvasOptions.onclone) {
-                    // 移动端正常模式：添加onclone处理
-                    html2canvasOptions.onclone = (clonedDoc) => {
-                        const clonedMapContainer = clonedDoc.querySelector('#map');
-                        if (clonedMapContainer) {
-                            clonedMapContainer.style.width = mapContainer.offsetWidth + 'px';
-                            clonedMapContainer.style.height = mapContainer.offsetHeight + 'px';
-                        }
-                    };
-                }
+                // 添加onclone处理（PC端和移动端快速模式）
+                html2canvasOptions.onclone = (clonedDoc) => {
+                    // 确保克隆的文档中的样式正确
+                    const clonedMapContainer = clonedDoc.querySelector('#map');
+                    if (clonedMapContainer) {
+                        clonedMapContainer.style.width = mapContainer.offsetWidth + 'px';
+                        clonedMapContainer.style.height = mapContainer.offsetHeight + 'px';
+                    }
+                    
+                    // 移动端快速模式：隐藏不必要的元素以提升速度
+                    if (isMobile && fastMode) {
+                        const controls = clonedDoc.querySelectorAll('.leaflet-control-container, .api-usage-panel, .map-type-indicator');
+                        controls.forEach(el => {
+                            if (el) el.style.display = 'none';
+                        });
+                    }
+                };
                 
                 // 使用html2canvas截图（直接使用全局函数）
                 html2canvas(mapContainer, html2canvasOptions).then(canvas => {
