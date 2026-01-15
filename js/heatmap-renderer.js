@@ -951,7 +951,6 @@ class HeatmapRenderer {
                         },
                         // 优化Canvas性能（根据浏览器警告添加）
                         onclone: (clonedDoc) => {
-                            // 设置Canvas的willReadFrequently属性以提升性能
                             const clonedMapContainer = clonedDoc.querySelector('#map');
                             if (clonedMapContainer) {
                                 clonedMapContainer.style.width = mapContainer.offsetWidth + 'px';
@@ -961,6 +960,19 @@ class HeatmapRenderer {
                                 const controls = clonedDoc.querySelectorAll('.api-usage-panel, .map-type-indicator');
                                 controls.forEach(el => {
                                     if (el) el.style.display = 'none';
+                                });
+                                
+                                // 优化Canvas：为所有Canvas元素设置willReadFrequently属性
+                                const canvases = clonedDoc.querySelectorAll('canvas');
+                                canvases.forEach(canvas => {
+                                    try {
+                                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                                        if (ctx) {
+                                            // Canvas上下文已优化
+                                        }
+                                    } catch (e) {
+                                        // 忽略错误，某些Canvas可能无法访问
+                                    }
                                 });
                             }
                         }
