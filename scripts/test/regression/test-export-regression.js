@@ -177,6 +177,16 @@ runner.test('导出功能回归: index.html应该正确加载Leaflet库', () => 
     runner.assert(hasWaitLogic, 'index.html应该等待Leaflet加载完成后再初始化应用');
 });
 
+runner.test('导出功能回归: index.html不应该引用fit-file-parser.min.js', () => {
+    const indexHtmlPath = path.join(__dirname, '../../../index.html');
+    const content = fs.readFileSync(indexHtmlPath, 'utf8');
+    
+    // 检查是否还有 fit-file-parser.min.js 的引用
+    const hasFitParserRef = content.includes('fit-file-parser.min.js') || 
+                           content.includes('fit-file-parser.js');
+    runner.assert(!hasFitParserRef, 'index.html不应该引用fit-file-parser.min.js（默认使用手动解析）');
+});
+
 // 运行测试
 if (require.main === module) {
     runner.run().then(success => {

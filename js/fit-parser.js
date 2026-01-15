@@ -75,16 +75,8 @@ class FITParser {
         this.dateRange = { min: null, max: null };
         this.totalDistance = 0;
         
-        // 检测 fit-file-parser 库是否可用
-        this.fitFileParserAvailable = this.checkFitFileParserLibrary();
-        
-        if (!this.fitFileParserAvailable) {
-            // 只在首次检测时显示警告，避免重复提示
-            if (!window._fitParserLibWarningShown) {
-                window._fitParserLibWarningShown = true;
-                logger.warn('fit-file-parser 库未加载，将使用手动解析（可能不够准确）。请参考 FIT_LIBRARY_SETUP.md 下载库文件。');
-            }
-        }
+        // 默认使用手动解析（不再依赖外部 fit-file-parser 库）
+        this.fitFileParserAvailable = false;
         
         // 预计算 semicircles 转度的常量（降级方案使用）
         // 度数 = semicircles * (180 / 2^31)

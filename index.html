@@ -1061,10 +1061,16 @@
                 }
                 
                 // 如果应用还未初始化，且 DOM 已准备好，则初始化
-                if (!appInitialized && document.readyState === 'complete' || document.readyState === 'interactive') {
+                if (!appInitialized && (document.readyState === 'complete' || document.readyState === 'interactive')) {
+                    // 检查是否已经初始化过（防止重复初始化）
+                    if (window.app) {
+                        appInitialized = true;
+                        return true;
+                    }
+                    
                     // 等待一小段时间确保所有脚本都已执行
                     setTimeout(() => {
-                        if (typeof CyclingHeatmapApp !== 'undefined') {
+                        if (typeof CyclingHeatmapApp !== 'undefined' && !window.app) {
                             try {
                                 window.app = new CyclingHeatmapApp();
                                 appInitialized = true;
@@ -1174,9 +1180,7 @@
     <!-- html2canvas 已改为延迟加载，仅在需要导出时加载 -->
     <script src="js/utils.js"></script>
     <script src="js/map-config.js"></script>
-    <!-- fit-file-parser 库（可选，如果文件不存在会自动降级到手动解析） -->
-    <script src="js/fit-file-parser.min.js" defer
-            onerror="this.onerror=null; console.warn('[WARN] fit-file-parser 库未加载,将使用手动解析(可能不够准确)。请参考 FIT_LIBRARY_SETUP.md 下载库文件。');"></script>
+    <!-- fit-file-parser 库已移除，默认使用手动解析 -->
     <script src="js/gpx-parser.js"></script>
     <script src="js/fit-parser.js"></script>
     <script src="js/heatmap-renderer.js"></script>

@@ -42,6 +42,23 @@ class HeatmapRenderer {
      * 初始化地图
      */
     initializeMap() {
+        // 检查地图容器是否已经初始化（防止重复初始化）
+        const mapElement = document.getElementById(this.mapElementId);
+        if (!mapElement) {
+            logger.error(`地图容器 ${this.mapElementId} 不存在`);
+            return;
+        }
+        
+        // 检查是否已经初始化过
+        if (mapElement._leaflet_id) {
+            logger.warn('地图容器已经初始化，跳过重复初始化');
+            // 尝试获取已存在的地图实例
+            if (window.L && window.L.map && mapElement._leaflet_id) {
+                this.map = L.map.getInstance(mapElement) || this.map;
+            }
+            return;
+        }
+        
         // 使用默认值，防止MAP_CONFIG未加载的情况
         const defaultCenter = (Utils.isDefined(MAP_CONFIG) && MAP_CONFIG.DEFAULT_CENTER) 
             ? MAP_CONFIG.DEFAULT_CENTER 

@@ -69,6 +69,32 @@ runner.test('FIT解析回归: 坐标验证应该在合理范围内', () => {
     runner.assert(hasValidation, '应该有坐标有效性验证');
 });
 
+runner.test('FIT解析回归: 应该默认使用手动解析（不依赖外部库）', () => {
+    const content = fs.readFileSync(fitParserPath, 'utf8');
+    
+    // 检查构造函数中是否默认设置为 false（不使用外部库）
+    const constructorStart = content.indexOf('constructor()');
+    if (constructorStart === -1) {
+        runner.assert(false, '找不到构造函数');
+        return;
+    }
+    
+    // 查找构造函数结束（下一个方法开始）
+    const nextMethodPattern = /\n    [a-zA-Z][a-zA-Z0-9_]*\(/;
+    const nextMethodMatch = content.substring(constructorStart + 50).match(nextMethodPattern);
+    const constructorEnd = nextMethodMatch ? constructorStart + 50 + nextMethodMatch.index : content.length;
+    const constructorContent = content.substring(constructorStart, constructorEnd);
+    
+    // 应该设置为 false，而不是调用 checkFitFileParserLibrary()
+    const usesManualByDefault = constructorContent.includes('this.fitFileParserAvailable = false') ||
+                               constructorContent.includes('fitFileParserAvailable = false');
+    runner.assert(usesManualByDefault, '应该默认使用手动解析（fitFileParserAvailable = false）');
+    
+    // 不应该调用 checkFitFileParserLibrary()
+    const noLibraryCheck = !constructorContent.includes('checkFitFileParserLibrary()');
+    runner.assert(noLibraryCheck, '构造函数不应该调用checkFitFileParserLibrary()');
+});
+
 // 运行测试
 if (require.main === module) {
     runner.run().then(success => {

@@ -2627,39 +2627,52 @@ document.head.appendChild(style);
 
 // 页面加载完成后初始化应用
 // 应用初始化已移至 index.html 中的脚本，确保 Leaflet 加载完成后再初始化
-// 如果脚本加载顺序导致这里先执行，则延迟初始化
+// 这里只作为备用初始化方案，如果 index.html 中的初始化失败
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+        // 检查是否已经初始化（防止重复初始化）
+        if (window.app) {
+            return;
+        }
+        
         // 检查 Leaflet 是否已加载
         if (typeof L !== 'undefined') {
             if (!window.app) {
-                window.app = new CyclingHeatmapApp();
+                try {
+                    window.app = new CyclingHeatmapApp();
+                } catch (error) {
+                    console.error('❌ 备用初始化失败:', error);
+                }
             }
         } else {
-            // Leaflet 未加载，等待加载完成
+            // Leaflet 未加载，等待加载完成（最多等待10秒）
+            let attempts = 0;
+            const maxAttempts = 100; // 10秒
             const checkLeaflet = setInterval(() => {
+                attempts++;
                 if (typeof L !== 'undefined') {
                     clearInterval(checkLeaflet);
                     if (!window.app) {
-                        window.app = new CyclingHeatmapApp();
+                        try {
+                            window.app = new CyclingHeatmapApp();
+                        } catch (error) {
+                            console.error('❌ 备用初始化失败:', error);
+                        }
                     }
-                }
-            }, 100);
-            
-            // 10秒超时
-            setTimeout(() => {
-                clearInterval(checkLeaflet);
-                if (typeof L === 'undefined') {
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkLeaflet);
                     console.error('❌ Leaflet 库加载超时，请检查网络连接');
                 }
-            }, 10000);
+            }, 100);
         }
     });
 } else {
-    // DOM 已准备好，但需要检查 Leaflet
-    if (typeof L !== 'undefined') {
-        if (!window.app) {
+    // DOM 已准备好，但需要检查 Leaflet 和是否已初始化
+    if (typeof L !== 'undefined' && !window.app) {
+        try {
             window.app = new CyclingHeatmapApp();
+        } catch (error) {
+            console.error('❌ 备用初始化失败:', error);
         }
     }
 }
