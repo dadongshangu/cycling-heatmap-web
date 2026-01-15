@@ -115,6 +115,47 @@ runner.test('导出功能回归: main.js中移动端导出应该直接显示模�
     runner.assert(hasDirectModal, 'Web Share失败后应该直接显示模态框');
 });
 
+runner.test('导出功能回归: PC端超时应该由main.js统一管理（20秒）', () => {
+    const mainContent = fs.readFileSync(mainJsPath, 'utf8');
+    const rendererContent = fs.readFileSync(heatmapRendererPath, 'utf8');
+    
+    // 检查main.js中PC端超时设置为20秒
+    const pcTimeoutPattern = /totalTimeout\s*=\s*20000/;
+    const hasCorrectTimeout = pcTimeoutPattern.test(mainContent);
+    runner.assert(hasCorrectTimeout, 'main.js中PC端超时应该设置为20000（20秒）');
+    
+    // 检查heatmap-renderer.js中PC端不应该有超时设置
+    const pcConfigStart = rendererContent.indexOf('// PC端：完全使用原有配置');
+    if (pcConfigStart !== -1) {
+        const nextBlock = rendererContent.indexOf('}', pcConfigStart + 50);
+        const pcConfigBlock = rendererContent.substring(pcConfigStart, nextBlock !== -1 ? nextBlock : rendererContent.length);
+        
+        // PC端配置块中不应该有timeout变量或setTimeout设置EXPORT_TIMEOUT
+        const hasTimeoutVar = /timeout\s*=/.test(pcConfigBlock);
+        const hasTimeoutSet = /setTimeout.*EXPORT_TIMEOUT/.test(pcConfigBlock);
+        runner.assert(!hasTimeoutVar && !hasTimeoutSet, 'heatmap-renderer.js中PC端不应该有超时设置');
+    }
+});
+
+runner.test('导出功能回归: exportMapAsImage不应该有内部超时设置', () => {
+    const content = fs.readFileSync(heatmapRendererPath, 'utf8');
+    
+    // 查找exportMapAsImage方法
+    const methodStart = content.indexOf('async exportMapAsImage(');
+    if (methodStart === -1) {
+        runner.assert(false, '找不到exportMapAsImage方法');
+        return;
+    }
+    
+    // 查找方法结束（下一个方法或类结束）
+    const methodEnd = content.indexOf('async ', methodStart + 1);
+    const methodContent = content.substring(methodStart, methodEnd !== -1 ? methodEnd : content.length);
+    
+    // 不应该有setTimeout设置EXPORT_TIMEOUT
+    const hasTimeoutSet = /setTimeout.*EXPORT_TIMEOUT/.test(methodContent);
+    runner.assert(!hasTimeoutSet, 'exportMapAsImage方法内部不应该有EXPORT_TIMEOUT超时设置');
+});
+
 // 运行测试
 if (require.main === module) {
     runner.run().then(success => {

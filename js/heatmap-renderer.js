@@ -845,14 +845,13 @@ class HeatmapRenderer {
                 
                 // PC端：保持原有配置（scale=1.0，高质量）
                 // 移动端：快速模式使用scale=0.8，正常模式使用scale=0.9
-                let scale, timeout, html2canvasOptions;
+                let scale, html2canvasOptions;
                 
                 if (isMobile) {
                     // 移动端：保持高质量（scale=1.0），优化其他配置以提升成功率
                     if (fastMode) {
                         // 快速模式：scale=1.0（保持高质量），但优化其他参数
                         scale = 1.0;
-                        timeout = 20000; // 20秒超时（高质量需要更长时间）
                         html2canvasOptions = {
                             useCORS: true,
                             allowTaint: false, // 不允许跨域图片，提升速度
@@ -881,7 +880,6 @@ class HeatmapRenderer {
                     } else {
                         // 正常模式：scale=1.0（高质量），与之前能工作的版本一致
                         scale = 1.0;
-                        timeout = 25000; // 25秒超时（高质量需要更长时间）
                         html2canvasOptions = {
                             useCORS: true,
                             allowTaint: true,
@@ -900,7 +898,7 @@ class HeatmapRenderer {
                 } else {
                     // PC端：完全使用原有配置（与之前能工作的版本一致）
                     scale = 1.0;
-                    timeout = 15000; // 15秒超时
+                    // 注意：PC端超时由main.js统一管理，这里不设置超时
                     html2canvasOptions = {
                         useCORS: true,
                         allowTaint: true,
@@ -911,13 +909,6 @@ class HeatmapRenderer {
                         height: mapContainer.offsetHeight
                     };
                 }
-                
-                let timeoutId = null;
-                
-                // 设置超时
-                timeoutId = setTimeout(() => {
-                    reject(new Error('EXPORT_TIMEOUT'));
-                }, timeout);
                 
                 // 添加onclone处理（PC端和移动端快速模式）
                 html2canvasOptions.onclone = (clonedDoc) => {
@@ -939,14 +930,10 @@ class HeatmapRenderer {
                 
                 // 使用html2canvas截图（直接使用全局函数）
                 html2canvas(mapContainer, html2canvasOptions).then(canvas => {
-                    // 清除超时
-                    if (timeoutId) clearTimeout(timeoutId);
                     // 转换为base64（保持高质量，quality=1.0）
                     const dataURL = canvas.toDataURL('image/png', 1.0);
                     resolve(dataURL);
                 }).catch(error => {
-                    // 清除超时
-                    if (timeoutId) clearTimeout(timeoutId);
                     logger.error('导出地图失败:', error);
                     
                     // 移动端：如果失败且未重试，尝试快速模式重试

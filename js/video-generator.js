@@ -504,10 +504,10 @@ class VideoGenerator {
      * @param {Date} startDate - 开始日期
      * @param {Date} endDate - 结束日期
      * @param {Function} progressCallback - 进度回调函数 (progress) => void
-     * @param {boolean} backgroundMode - 是否后台模式（默认false）
+     * @param {Function} progressCallback - 进度回调函数
      * @returns {Promise<Blob>} 视频Blob
      */
-    async generateVideo(tracks, startDate, endDate, progressCallback, backgroundMode = false) {
+    async generateVideo(tracks, startDate, endDate, progressCallback) {
         if (this.isGenerating) {
             throw new Error('视频生成正在进行中');
         }
@@ -574,8 +574,22 @@ class VideoGenerator {
                 throw new Error('在指定时间范围内没有轨迹点');
             }
 
-            // 估算生成时间
+            // 估算生成时间（在loadFFmpeg之前计算，以便提前提醒）
             const estimatedTime = this.estimateGenerationTime(timeWindows.length);
+            
+            // 如果估算时间超过30秒，提前触发事件（在loadFFmpeg之前）
+            // 这样用户可以在加载FFmpeg之前就知道需要等待多长时间
+            if (estimatedTime > 30) {
+                // 触发事件，通知主应用生成时间较长
+                const event = new CustomEvent('videoGenerationLongTime', {
+                    detail: {
+                        generationId: generationId,
+                        estimatedTime: estimatedTime,
+                        totalFrames: timeWindows.length
+                    }
+                });
+                document.dispatchEvent(event);
+            }
             
             // 保存初始进度
             await this.saveProgress(generationId, {
@@ -592,19 +606,6 @@ class VideoGenerator {
                 progressCallback({ stage: 'loading', progress: 20, message: '正在加载视频处理库...' });
             }
             await this.loadFFmpeg();
-            
-            // 如果估算时间超过30秒，建议后台模式
-            if (!backgroundMode && estimatedTime > 30) {
-                // 触发事件，让主应用决定是否切换到后台模式
-                const event = new CustomEvent('videoGenerationLongTime', {
-                    detail: {
-                        generationId: generationId,
-                        estimatedTime: estimatedTime,
-                        totalFrames: timeWindows.length
-                    }
-                });
-                document.dispatchEvent(event);
-            }
 
             // 生成帧序列
             const frames = [];

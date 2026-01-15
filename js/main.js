@@ -1910,8 +1910,14 @@ class CyclingHeatmapApp {
             exportBtn.disabled = true;
         }
 
-        // 监听长时间生成事件
+        // 监听长时间生成事件（必须在generateVideo调用之前注册，因为事件会在loadFFmpeg之前触发）
         let longTimeHandler = null;
+        longTimeHandler = (event) => {
+            const { generationId, estimatedTime, totalFrames } = event.detail;
+            this.handleLongTimeGeneration(generationId, estimatedTime, totalFrames);
+        };
+        document.addEventListener('videoGenerationLongTime', longTimeHandler);
+
         try {
             // 显示视频生成进度模态框
             const progressModal = document.getElementById('videoProgressModal');
@@ -1932,20 +1938,12 @@ class CyclingHeatmapApp {
                 }
             };
 
-            // 设置长时间生成事件监听器
-            longTimeHandler = (event) => {
-                const { generationId, estimatedTime, totalFrames } = event.detail;
-                this.handleLongTimeGeneration(generationId, estimatedTime, totalFrames);
-            };
-            document.addEventListener('videoGenerationLongTime', longTimeHandler);
-
             // 生成视频
             const videoBlob = await this.videoGenerator.generateVideo(
                 this.loadedTracks,
                 startDate,
                 endDate,
-                progressCallback,
-                false // 前台模式
+                progressCallback
             );
 
             // 下载视频
@@ -2017,60 +2015,11 @@ class CyclingHeatmapApp {
     handleLongTimeGeneration(generationId, estimatedTime, totalFrames) {
         const minutes = Math.ceil(estimatedTime / 60);
         const message = `视频生成预计需要约 ${minutes} 分钟（${totalFrames} 帧）。\n\n` +
-                       `视频将在后台生成，完成后会自动保存到浏览器本地存储。\n\n` +
-                       `您可以：\n` +
-                       `1. 继续等待（推荐，可以实时查看进度）\n` +
-                       `2. 关闭此提示，视频将在后台继续生成\n` +
-                       `3. 稍后通过"检查已完成视频"功能查看结果\n\n` +
+                       `视频生成过程中会显示进度，您可以继续使用其他功能。\n\n` +
                        `如果生成失败，请检查浏览器控制台的错误信息。`;
         
-        // 显示确认对话框
-        const userChoice = confirm(message);
-        
-        if (!userChoice) {
-            // 用户选择继续等待，显示后台生成提示
-            this.showBackgroundGenerationInfo(generationId, estimatedTime);
-        }
-    }
-
-    /**
-     * 显示后台生成信息
-     * @param {string} generationId - 生成任务ID
-     * @param {number} estimatedTime - 估算时间（秒）
-     */
-    showBackgroundGenerationInfo(generationId, estimatedTime) {
-        const minutes = Math.ceil(estimatedTime / 60);
-        const completionTime = new Date(Date.now() + estimatedTime * 1000);
-        const timeString = completionTime.toLocaleTimeString('zh-CN', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-        });
-        
-        const infoMessage = `视频正在后台生成中...\n\n` +
-                           `任务ID: ${generationId}\n` +
-                           `预计完成时间: 约 ${minutes} 分钟后（${timeString}）\n\n` +
-                           `您可以：\n` +
-                           `1. 继续使用其他功能（视频会在后台继续生成）\n` +
-                           `2. 稍后点击"检查已完成视频"查看结果\n` +
-                           `3. 如果生成失败，请检查浏览器控制台\n\n` +
-                           `提示：视频生成完成后会自动保存到浏览器本地存储。`;
-        
-        this.showMessage(infoMessage, 'info');
-        
-        // 保存任务ID到localStorage，以便后续检查
-        try {
-            const pendingTasks = JSON.parse(localStorage.getItem('pendingVideoTasks') || '[]');
-            if (!pendingTasks.includes(generationId)) {
-                pendingTasks.push({
-                    id: generationId,
-                    startTime: Date.now(),
-                    estimatedTime: estimatedTime
-                });
-                localStorage.setItem('pendingVideoTasks', JSON.stringify(pendingTasks));
-            }
-        } catch (e) {
-            logger.warn('保存任务ID失败:', e);
-        }
+        // 显示提示信息（不再询问是否后台生成，因为后台生成功能尚未完全实现）
+        this.showMessage(message, 'info');
     }
 
     /**
