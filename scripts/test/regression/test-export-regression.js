@@ -156,6 +156,27 @@ runner.test('导出功能回归: exportMapAsImage不应该有内部超时设置'
     runner.assert(!hasTimeoutSet, 'exportMapAsImage方法内部不应该有EXPORT_TIMEOUT超时设置');
 });
 
+runner.test('导出功能回归: index.html应该正确加载Leaflet库', () => {
+    const indexHtmlPath = path.join(__dirname, '../../../index.html');
+    const content = fs.readFileSync(indexHtmlPath, 'utf8');
+    
+    // 检查是否有 Leaflet CSS
+    const hasLeafletCSS = content.includes('leaflet.css') || content.includes('leaflet@');
+    runner.assert(hasLeafletCSS, 'index.html应该包含Leaflet CSS引用');
+    
+    // 检查是否有 Leaflet JS 加载逻辑
+    const hasLeafletJS = content.includes('leaflet.js') || content.includes('leaflet@');
+    runner.assert(hasLeafletJS, 'index.html应该包含Leaflet JS引用');
+    
+    // 检查是否有备用CDN方案
+    const hasFallback = content.includes('jsdelivr') && content.includes('unpkg');
+    runner.assert(hasFallback, 'index.html应该有备用CDN方案（jsdelivr和unpkg）');
+    
+    // 检查是否有等待Leaflet加载的逻辑
+    const hasWaitLogic = content.includes('typeof L') || content.includes('checkAndInitApp') || content.includes('leafletLoaded');
+    runner.assert(hasWaitLogic, 'index.html应该等待Leaflet加载完成后再初始化应用');
+});
+
 // 运行测试
 if (require.main === module) {
     runner.run().then(success => {

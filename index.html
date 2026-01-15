@@ -1041,25 +1041,68 @@
     </script>
     <!-- Leaflet JS - 使用 jsDelivr CDN（更可靠，避免 Tracking Prevention 问题），带备用方案 -->
     <script>
-        // 动态加载 Leaflet，带备用 CDN
+        // 动态加载 Leaflet，带备用 CDN，并确保加载完成后再初始化应用
         (function() {
-            const loadScript = (src, fallbackSrc, onError) => {
-                const script = document.createElement('script');
-                script.src = src;
-                script.crossOrigin = 'anonymous';
-                script.onerror = function() {
-                    if (fallbackSrc && script.src !== fallbackSrc) {
-                        console.warn('CDN加载失败，尝试备用CDN:', src);
-                        script.src = fallbackSrc;
-                        script.onerror = onError;
-                    } else {
-                        onError();
-                    }
-                };
-                script.onload = function() {
-                    console.log('成功加载:', script.src.includes('jsdelivr') ? 'jsDelivr CDN' : 'unpkg CDN');
-                };
-                document.head.appendChild(script);
+            let leafletLoaded = false;
+            let leafletHeatLoaded = false;
+            let appInitialized = false;
+            
+            const checkAndInitApp = () => {
+                // 检查 Leaflet 是否已加载
+                if (typeof L === 'undefined') {
+                    return false;
+                }
+                
+                // 检查 Leaflet.heat 是否已加载（可选，但推荐）
+                if (typeof L.heatLayer === 'undefined') {
+                    // Leaflet.heat 未加载，但可以继续（会使用降级方案）
+                    console.warn('⚠️ Leaflet.heat 未加载，将使用降级方案');
+                }
+                
+                // 如果应用还未初始化，且 DOM 已准备好，则初始化
+                if (!appInitialized && document.readyState === 'complete' || document.readyState === 'interactive') {
+                    // 等待一小段时间确保所有脚本都已执行
+                    setTimeout(() => {
+                        if (typeof CyclingHeatmapApp !== 'undefined') {
+                            try {
+                                window.app = new CyclingHeatmapApp();
+                                appInitialized = true;
+                                console.log('✅ 应用初始化完成');
+                            } catch (error) {
+                                console.error('❌ 应用初始化失败:', error);
+                            }
+                        }
+                    }, 100);
+                }
+                
+                return true;
+            };
+            
+            const loadScript = (src, fallbackSrc, onError, onSuccess) => {
+                return new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.crossOrigin = 'anonymous';
+                    script.onerror = function() {
+                        if (fallbackSrc && script.src !== fallbackSrc) {
+                            console.warn('CDN加载失败，尝试备用CDN:', src);
+                            script.src = fallbackSrc;
+                            script.onerror = function() {
+                                onError();
+                                reject(new Error('所有CDN加载失败'));
+                            };
+                        } else {
+                            onError();
+                            reject(new Error('CDN加载失败'));
+                        }
+                    };
+                    script.onload = function() {
+                        console.log('✅ 成功加载:', script.src.includes('jsdelivr') ? 'jsDelivr CDN' : 'unpkg CDN');
+                        if (onSuccess) onSuccess();
+                        resolve();
+                    };
+                    document.head.appendChild(script);
+                });
             };
             
             // 加载 Leaflet.js
@@ -1068,19 +1111,37 @@
                 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
                 function() {
                     console.error('❌ Leaflet 库加载失败，请检查网络连接或使用本地服务器');
+                },
+                function() {
+                    leafletLoaded = true;
+                    checkAndInitApp();
                 }
-            );
-            
-            // 加载 Leaflet.heat.js（依赖 Leaflet）
-            setTimeout(() => {
-                loadScript(
+            ).then(() => {
+                // Leaflet 加载成功后，加载 Leaflet.heat
+                return loadScript(
                     'https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js',
                     'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js',
                     function() {
-                        console.error('❌ Leaflet.heat 库加载失败，请检查网络连接或使用本地服务器');
+                        console.warn('⚠️ Leaflet.heat 库加载失败，将使用降级方案');
+                    },
+                    function() {
+                        leafletHeatLoaded = true;
+                        checkAndInitApp();
                     }
                 );
-            }, 100);
+            }).catch(() => {
+                // 即使加载失败，也尝试初始化（可能使用降级方案）
+                setTimeout(checkAndInitApp, 500);
+            });
+            
+            // 如果 DOM 已经准备好，也检查一次
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+                setTimeout(checkAndInitApp, 200);
+            } else {
+                document.addEventListener('DOMContentLoaded', () => {
+                    setTimeout(checkAndInitApp, 200);
+                });
+            }
         })();
     </script>
     <!-- html2canvas 已改为延迟加载，仅在需要导出时加载 -->

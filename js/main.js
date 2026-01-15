@@ -2626,9 +2626,43 @@ style.textContent = `
 document.head.appendChild(style);
 
 // 页面加载完成后初始化应用
-document.addEventListener('DOMContentLoaded', () => {
-    window.app = new CyclingHeatmapApp();
-});
+// 应用初始化已移至 index.html 中的脚本，确保 Leaflet 加载完成后再初始化
+// 如果脚本加载顺序导致这里先执行，则延迟初始化
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        // 检查 Leaflet 是否已加载
+        if (typeof L !== 'undefined') {
+            if (!window.app) {
+                window.app = new CyclingHeatmapApp();
+            }
+        } else {
+            // Leaflet 未加载，等待加载完成
+            const checkLeaflet = setInterval(() => {
+                if (typeof L !== 'undefined') {
+                    clearInterval(checkLeaflet);
+                    if (!window.app) {
+                        window.app = new CyclingHeatmapApp();
+                    }
+                }
+            }, 100);
+            
+            // 10秒超时
+            setTimeout(() => {
+                clearInterval(checkLeaflet);
+                if (typeof L === 'undefined') {
+                    console.error('❌ Leaflet 库加载超时，请检查网络连接');
+                }
+            }, 10000);
+        }
+    });
+} else {
+    // DOM 已准备好，但需要检查 Leaflet
+    if (typeof L !== 'undefined') {
+        if (!window.app) {
+            window.app = new CyclingHeatmapApp();
+        }
+    }
+}
 
 // 导出应用类
 window.CyclingHeatmapApp = CyclingHeatmapApp;
