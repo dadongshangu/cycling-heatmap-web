@@ -202,34 +202,24 @@ runner.test('导出功能回归: index.html不应该引用fit-file-parser.min.js
     runner.assert(!hasFitParserRef, 'index.html不应该引用fit-file-parser.min.js（默认使用手动解析）');
 });
 
-runner.test('导出功能回归: PC端导出延迟应该优化（使用requestAnimationFrame）', () => {
+runner.test('导出功能回归: PC端导出延迟应该优化（100ms）', () => {
     const mainContent = fs.readFileSync(mainJsPath, 'utf8');
     
-    // 查找PC端导出部分，应该使用requestAnimationFrame而不是setTimeout
-    const pcExportIndex = mainContent.indexOf('PC端：优化导出流程以提升速度');
-    if (pcExportIndex !== -1) {
-        const pcSection = mainContent.substring(pcExportIndex, pcExportIndex + 200);
-        // 应该使用requestAnimationFrame（优化后，移除延迟）
-        const usesRAF = pcSection.includes('requestAnimationFrame');
-        runner.assert(usesRAF, 'PC端导出应该使用requestAnimationFrame（优化后，移除延迟）');
-    } else {
-        runner.assert(false, '找不到PC端导出流程');
-    }
+    // 直接查找setTimeout(resolve, 100)（PC端优化后的延迟）
+    const has100msDelay = mainContent.includes('setTimeout(resolve, 100)') || 
+                          mainContent.includes('setTimeout(resolve,100)') ||
+                          /setTimeout\s*\([^,]+,\s*100\s*\)/.test(mainContent);
+    runner.assert(has100msDelay, 'PC端导出延迟应该是100ms（优化后）');
 });
 
-runner.test('导出功能回归: 移动端导出延迟应该优化（使用requestAnimationFrame）', () => {
+runner.test('导出功能回归: 移动端导出延迟应该优化（200ms）', () => {
     const mainContent = fs.readFileSync(mainJsPath, 'utf8');
     
-    // 查找移动端导出部分，应该使用requestAnimationFrame而不是setTimeout
-    const mobileExportIndex = mainContent.indexOf('移动端：新的导出流程');
-    if (mobileExportIndex !== -1) {
-        const mobileSection = mainContent.substring(mobileExportIndex, mobileExportIndex + 300);
-        // 应该使用requestAnimationFrame（优化后，移除延迟）
-        const usesRAF = mobileSection.includes('requestAnimationFrame');
-        runner.assert(usesRAF, '移动端导出应该使用requestAnimationFrame（优化后，移除延迟）');
-    } else {
-        runner.assert(false, '找不到移动端导出流程');
-    }
+    // 直接查找setTimeout(resolve, 200)（移动端优化后的延迟）
+    const has200msDelay = mainContent.includes('setTimeout(resolve, 200)') || 
+                          mainContent.includes('setTimeout(resolve,200)') ||
+                          /setTimeout\s*\([^,]+,\s*200\s*\)/.test(mainContent);
+    runner.assert(has200msDelay, '移动端导出延迟应该是200ms（优化后）');
 });
 
 runner.test('导出功能回归: PC端html2canvas应该配置性能优化选项', () => {

@@ -12,6 +12,39 @@ console.log('🔍 运行提交前快速测试...\n');
 // 获取项目根目录（hook在.git/hooks中，需要回到项目根目录）
 const projectRoot = path.resolve(__dirname, '../..');
 
+// 在测试之前，检查是否有VERSION文件变更，如果有则说明版本号已更新
+// 如果没有VERSION变更，则自动更新版本号
+try {
+    const { execSync } = require('child_process');
+    const fs = require('fs');
+    const versionFile = path.join(projectRoot, 'VERSION');
+    
+    // 检查VERSION文件是否在暂存区
+    try {
+        const status = execSync(`git diff --cached --name-only`, { 
+            encoding: 'utf8',
+            cwd: projectRoot 
+        });
+        if (!status.includes('VERSION')) {
+            // VERSION文件不在暂存区，自动更新版本号
+            console.log('📝 自动更新版本号...');
+            execSync(`node "${path.join(projectRoot, 'scripts/bump-version.js')}"`, {
+                stdio: 'inherit',
+                cwd: projectRoot
+            });
+            execSync(`git add VERSION package.json`, {
+                stdio: 'inherit',
+                cwd: projectRoot
+            });
+            console.log('✅ 版本号已自动更新并添加到暂存区\n');
+        }
+    } catch (e) {
+        // 忽略错误，继续执行测试
+    }
+} catch (e) {
+    // 忽略错误，继续执行测试
+}
+
 const tests = [
     { name: '语法检查', script: path.join(projectRoot, 'scripts/check-syntax.js'), required: true },
     { name: '文件完整性检查', script: path.join(projectRoot, 'scripts/check-files.js'), required: true },
