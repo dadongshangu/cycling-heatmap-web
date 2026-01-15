@@ -153,6 +153,27 @@ node scripts/test-all.js
 
 ---
 
+## 🔄 版本号管理
+
+### bump-version.js
+
+版本号自动递增脚本，由Git pre-push hook自动调用。
+
+**工作原理：**
+1. 读取 `VERSION` 文件中的当前版本号
+2. 将次版本号递增1（如 1.01 -> 1.02）
+3. 如果次版本号超过99，则主版本号递增（如 1.99 -> 2.00）
+4. 同时更新 `package.json` 中的version字段
+
+**自动调用：**
+- 在 `git push` 时，pre-push hook会在测试通过后自动调用
+- 版本号更新后会自动创建commit并包含在push中
+
+**手动调用：**
+```bash
+node scripts/bump-version.js
+```
+
 ## 📚 相关文档
 
 - `doc/TESTING_GUIDE.md` - 完整的测试指南
