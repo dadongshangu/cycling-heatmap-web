@@ -1,0 +1,166 @@
+# Cursor Rules for Cycling Heatmap Web Project
+
+## 项目概述
+这是一个基于Web的GPS轨迹热力图生成器，专注于骑行，同时支持徒步、跑步等所有GPS轨迹。将GPX/FIT轨迹文件转换为Strava风格的交互式热力图。
+
+## 核心原则
+
+### 1. 不破坏原有功能
+- 所有新功能必须完全独立实现
+- 不能修改原有的核心方法（如 `renderHeatmap()`）
+- 新功能使用新方法（如 `renderHeatmapWithTimeFilter()`）
+- 确保向后兼容
+
+### 2. 状态管理
+- 任何修改全局状态的操作必须在 `finally` 块中恢复
+- 视频生成、导出等操作要保存和恢复原始状态
+- 使用 try-catch-finally 确保状态恢复可靠
+
+### 3. 错误处理
+- 提供友好的错误提示
+- 检测环境限制（如 file:// 协议）
+- 提供解决方案和替代方案
+
+### 4. 测试要求
+- 新功能必须添加回归测试
+- 确保不破坏原有测试
+- 提交前运行 `npm test`
+
+## 代码风格
+
+### JavaScript
+- 使用 ES6+ 语法
+- 类名使用 PascalCase（如 `VideoGenerator`）
+- 方法名使用 camelCase（如 `generateVideo`）
+- 添加 JSDoc 注释说明方法用途
+
+### 文件组织
+- 核心逻辑在 `js/` 目录
+- 测试在 `scripts/test/` 目录
+- 文档在 `doc/` 目录
+
+## 关键文件
+
+### 核心文件
+- `js/main.js` - 主应用逻辑，包含 `CyclingHeatmapApp` 类
+- `js/heatmap-renderer.js` - 热力图渲染器，包含 `HeatmapRenderer` 类
+- `js/video-generator.js` - 视频生成器，包含 `VideoGenerator` 类
+- `index.html` - 主页面
+- `css/style.css` - 样式文件
+
+### 重要方法
+- `CyclingHeatmapApp.exportMap()` - 导出热力图（主要功能，不能破坏）
+- `CyclingHeatmapApp.generateVideo()` - 生成视频（新增功能）
+- `HeatmapRenderer.renderHeatmap()` - 渲染热力图（原有方法，不能修改）
+- `HeatmapRenderer.renderHeatmapWithTimeFilter()` - 渲染热力图（用于视频生成）
+
+## UI设计原则
+
+### 按钮优先级
+- **导出热力图按钮**: 主要功能，使用 `.map-control-btn-primary` 样式（橙色渐变，突出）
+- **视频按钮**: 次要功能，使用 `.map-control-btn-secondary` 样式（白色背景，不突出）
+
+### 文字规范
+- "导出热力图" - 主要功能按钮文字
+- "视频" - 次要功能按钮文字
+
+## 测试规范
+
+### 必须运行的测试
+- 语法检查: `node scripts/check-syntax.js`
+- 文件完整性: `node scripts/check-files.js`
+- 回归测试: `npm run test:regression`
+- 完整测试: `npm test`
+
+### 测试覆盖要求
+- 新功能必须添加回归测试
+- 确保兼容性测试通过
+- 验证不破坏原有功能
+
+## 文档要求
+
+### 必须更新的文档
+- `README.md` - 功能说明和使用指南
+- `doc/DEVELOPER_GUIDE.md` - 开发指南（如有架构变更）
+- `doc/TESTING_GUIDE.md` - 测试指南（如有测试变更）
+
+### 文档位置
+- 用户文档: `README.md`
+- 开发文档: `doc/` 目录
+- 测试文档: `scripts/test/` 目录
+
+## 常见任务
+
+### 添加新功能
+1. 创建新的类或方法（完全独立）
+2. 在 `main.js` 中集成
+3. 添加 UI 元素（如需要）
+4. 添加回归测试
+5. 更新文档
+6. 运行所有测试确保通过
+
+### 修复Bug
+1. 检查 `doc/BUG_ANALYSIS_AND_PREVENTION.md`
+2. 运行相关回归测试
+3. 修复问题
+4. 添加测试防止回归
+5. 更新文档（如需要）
+
+### 优化性能
+1. 参考 `doc/OPTIMIZATION_SUGGESTIONS.md`
+2. 确保不破坏功能
+3. 添加性能测试（如需要）
+4. 更新文档
+
+## 禁止的操作
+
+1. ❌ 修改 `renderHeatmap()` 方法的签名或核心逻辑
+2. ❌ 在 `exportMap()` 中调用视频生成相关代码
+3. ❌ 使用展开运算符处理大数组（会导致栈溢出）
+4. ❌ 在 file:// 协议下尝试加载 Web Worker（会失败）
+5. ❌ 删除或修改现有的回归测试
+
+## 推荐的操作
+
+1. ✅ 使用循环而不是展开运算符处理大数组
+2. ✅ 在 finally 块中恢复状态
+3. ✅ 检测环境限制并提供友好提示
+4. ✅ 添加完整的错误处理
+5. ✅ 为新功能添加回归测试
+
+## 项目状态
+
+- **当前版本**: 稳定
+- **主要功能**: 热力图生成、导出、视频生成
+- **测试状态**: 所有回归测试通过（26个用例）
+- **文档状态**: 完整且最新
+
+## 快速参考
+
+### 运行测试
+```bash
+npm test                    # 所有测试
+npm run test:regression     # 回归测试
+npm run test:video          # 视频功能测试
+npm run test:compatibility  # 兼容性测试
+```
+
+### 启动服务器
+```bash
+# Windows
+快速启动.bat
+
+# Linux/Mac
+./start-server.sh
+```
+
+### 代码检查
+```bash
+npm run check:syntax    # 语法检查
+npm run check:files     # 文件完整性
+npm run check:quality   # 代码质量
+```
+
+---
+
+**提示**: 开始新对话时，可以引用 `CONTEXT.md` 文件快速恢复上下文。
