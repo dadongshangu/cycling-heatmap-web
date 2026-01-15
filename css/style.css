@@ -739,6 +739,12 @@ body {
     text-decoration: underline;
 }
 
+.version-info {
+    font-weight: 500;
+    color: #ffa500;
+    opacity: 1;
+}
+
 /* Modal */
 .modal {
     position: fixed;

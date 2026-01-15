@@ -232,6 +232,7 @@
         <!-- Footer -->
         <footer class="footer">
             <p>
+                <span class="version-info" id="versionInfo">版本: <span id="versionNumber">加载中...</span></span> | 
                 💡 提示: 所有文件都在浏览器本地处理，不会上传到服务器 | 
                 <a href="https://dadongshangu.github.io" target="_blank">开发者</a> | 
                 <a href="#" onclick="showHelp()">使用帮助</a> | 
@@ -1142,6 +1143,32 @@
                     setTimeout(checkAndInitApp, 200);
                 });
             }
+        })();
+    </script>
+    <!-- 加载版本号 -->
+    <script>
+        // 加载版本号
+        (function() {
+            fetch('VERSION')
+                .then(response => {
+                    if (response.ok) {
+                        return response.text();
+                    }
+                    throw new Error('无法加载版本号');
+                })
+                .then(version => {
+                    const versionNumber = document.getElementById('versionNumber');
+                    if (versionNumber) {
+                        versionNumber.textContent = version.trim();
+                    }
+                })
+                .catch(error => {
+                    const versionNumber = document.getElementById('versionNumber');
+                    if (versionNumber) {
+                        versionNumber.textContent = '未知';
+                    }
+                    console.warn('版本号加载失败:', error);
+                });
         })();
     </script>
     <!-- html2canvas 已改为延迟加载，仅在需要导出时加载 -->
