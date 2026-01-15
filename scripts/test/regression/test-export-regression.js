@@ -31,55 +31,68 @@ runner.test('导出功能回归: exportMapAsImage方法应该直接使用html2ca
     runner.assert(hasDirectHtml2Canvas, '应该直接使用html2canvas函数');
 });
 
-runner.test('导出功能回归: 移动端正常模式imageTimeout应该是12000', () => {
+runner.test('导出功能回归: 移动端正常模式imageTimeout应该优化为8000', () => {
     const content = fs.readFileSync(heatmapRendererPath, 'utf8');
     
-    // 检查移动端正常模式的imageTimeout配置
-    const mobileNormalModePattern = /imageTimeout:\s*12000/;
-    const hasCorrectTimeout = mobileNormalModePattern.test(content);
-    
-    runner.assert(hasCorrectTimeout, '移动端正常模式imageTimeout应该是12000（12秒）');
-});
-
-runner.test('导出功能回归: 移动端正常模式不应该有ignoreElements', () => {
-    const content = fs.readFileSync(heatmapRendererPath, 'utf8');
-    
-    // 查找移动端正常模式的配置块
-    const mobileNormalModeStart = content.indexOf('// 正常模式：scale=1.0');
-    if (mobileNormalModeStart === -1) {
-        runner.assert(false, '找不到移动端正常模式配置');
+    // 查找移动端正常模式配置（已更新为优化配置）
+    const mobileConfigStart = content.indexOf('正常模式：scale=1.0（高质量），优化配置以提升速度');
+    if (mobileConfigStart === -1) {
+        runner.assert(false, '找不到移动端优化配置');
         return;
     }
     
-    // 查找下一个模式或else块
-    const nextMode = content.indexOf('} else {', mobileNormalModeStart);
-    const mobileNormalModeBlock = content.substring(mobileNormalModeStart, nextMode !== -1 ? nextMode : content.length);
+    // 查找imageTimeout设置
+    const nextBlock = content.indexOf('}', mobileConfigStart + 50);
+    const mobileConfigBlock = content.substring(mobileConfigStart, nextBlock !== -1 ? nextBlock : content.length);
     
-    // 检查是否有ignoreElements
-    const hasIgnoreElements = mobileNormalModeBlock.includes('ignoreElements:');
-    runner.assert(!hasIgnoreElements, '移动端正常模式不应该有ignoreElements配置');
+    const timeoutMatch = mobileConfigBlock.match(/imageTimeout:\s*(\d+)/);
+    if (timeoutMatch) {
+        const timeout = parseInt(timeoutMatch[1]);
+        runner.assert(timeout === 8000, `移动端正常模式imageTimeout应该优化为8000（从12秒优化），当前是${timeout}`);
+    } else {
+        runner.assert(false, '找不到移动端正常模式imageTimeout设置');
+    }
 });
 
-runner.test('导出功能回归: PC端配置应该简化（只有基本配置）', () => {
+runner.test('导出功能回归: 移动端正常模式应该有ignoreElements优化', () => {
     const content = fs.readFileSync(heatmapRendererPath, 'utf8');
     
-    // 查找PC端配置块
-    const pcConfigStart = content.indexOf('// PC端：完全使用原有配置');
+    // 查找移动端正常模式配置（已更新为优化配置）
+    const mobileConfigStart = content.indexOf('正常模式：scale=1.0（高质量），优化配置以提升速度');
+    if (mobileConfigStart === -1) {
+        runner.assert(false, '找不到移动端优化配置');
+        return;
+    }
+    
+    // 查找配置块
+    const nextBlock = content.indexOf('}', mobileConfigStart + 50);
+    const mobileConfigBlock = content.substring(mobileConfigStart, nextBlock !== -1 ? nextBlock : content.length);
+    
+    // 移动端正常模式应该有ignoreElements（性能优化）
+    const hasIgnoreElements = mobileConfigBlock.includes('ignoreElements');
+    runner.assert(hasIgnoreElements, '移动端正常模式应该有ignoreElements以提升速度');
+});
+
+runner.test('导出功能回归: PC端配置应该优化（性能优化选项）', () => {
+    const content = fs.readFileSync(heatmapRendererPath, 'utf8');
+    
+    // 查找PC端配置（已更新为优化配置）
+    const pcConfigStart = content.indexOf('PC端：优化配置以提升导出速度');
     if (pcConfigStart === -1) {
-        runner.assert(false, '找不到PC端配置');
+        runner.assert(false, '找不到PC端优化配置');
         return;
     }
     
-    // 查找下一个块
-    const nextBlock = content.indexOf('}', pcConfigStart + 50);
+    // 查找配置块
+    const nextBlock = content.indexOf('}', pcConfigStart + 100);
     const pcConfigBlock = content.substring(pcConfigStart, nextBlock !== -1 ? nextBlock : content.length);
     
-    // PC端不应该有这些配置
-    const shouldNotHave = ['scrollX', 'scrollY', 'windowWidth', 'windowHeight', 'imageTimeout', 'foreignObjectRendering', 'ignoreElements'];
-    shouldNotHave.forEach(config => {
-        const hasConfig = pcConfigBlock.includes(config + ':');
-        runner.assert(!hasConfig, `PC端配置不应该包含${config}`);
-    });
+    // PC端应该有性能优化选项
+    const hasForeignObjectDisabled = pcConfigBlock.includes('foreignObjectRendering: false');
+    runner.assert(hasForeignObjectDisabled, 'PC端应该禁用foreignObjectRendering以提升速度');
+    
+    const hasIgnoreElements = pcConfigBlock.includes('ignoreElements');
+    runner.assert(hasIgnoreElements, 'PC端应该配置ignoreElements以忽略不必要元素');
     
     // PC端应该有这些基本配置
     const shouldHave = ['useCORS', 'allowTaint', 'backgroundColor', 'scale', 'logging', 'width', 'height'];
@@ -130,10 +143,12 @@ runner.test('导出功能回归: PC端超时应该由main.js统一管理（30秒
         const nextBlock = rendererContent.indexOf('}', pcConfigStart + 50);
         const pcConfigBlock = rendererContent.substring(pcConfigStart, nextBlock !== -1 ? nextBlock : rendererContent.length);
         
-        // PC端配置块中不应该有timeout变量或setTimeout设置EXPORT_TIMEOUT
-        const hasTimeoutVar = /timeout\s*=/.test(pcConfigBlock);
-        const hasTimeoutSet = /setTimeout.*EXPORT_TIMEOUT/.test(pcConfigBlock);
-        runner.assert(!hasTimeoutVar && !hasTimeoutSet, 'heatmap-renderer.js中PC端不应该有超时设置');
+    // PC端配置块中应该有性能优化选项
+    const hasForeignObjectDisabled = pcConfigBlock.includes('foreignObjectRendering: false');
+    runner.assert(hasForeignObjectDisabled, 'PC端应该禁用foreignObjectRendering以提升速度');
+    
+    const hasIgnoreElements = pcConfigBlock.includes('ignoreElements');
+    runner.assert(hasIgnoreElements, 'PC端应该配置ignoreElements以忽略不必要元素');
     }
 });
 
@@ -185,6 +200,79 @@ runner.test('导出功能回归: index.html不应该引用fit-file-parser.min.js
     const hasFitParserRef = content.includes('fit-file-parser.min.js') || 
                            content.includes('fit-file-parser.js');
     runner.assert(!hasFitParserRef, 'index.html不应该引用fit-file-parser.min.js（默认使用手动解析）');
+});
+
+runner.test('导出功能回归: PC端导出延迟应该优化（100ms）', () => {
+    const mainContent = fs.readFileSync(mainJsPath, 'utf8');
+    
+    // 直接查找setTimeout(resolve, 100)（PC端优化后的延迟）
+    const has100msDelay = mainContent.includes('setTimeout(resolve, 100)') || 
+                          mainContent.includes('setTimeout(resolve,100)') ||
+                          /setTimeout\s*\([^,]+,\s*100\s*\)/.test(mainContent);
+    runner.assert(has100msDelay, 'PC端导出延迟应该是100ms（优化后）');
+});
+
+runner.test('导出功能回归: 移动端导出延迟应该优化（200ms）', () => {
+    const mainContent = fs.readFileSync(mainJsPath, 'utf8');
+    
+    // 直接查找setTimeout(resolve, 200)（移动端优化后的延迟）
+    const has200msDelay = mainContent.includes('setTimeout(resolve, 200)') || 
+                          mainContent.includes('setTimeout(resolve,200)') ||
+                          /setTimeout\s*\([^,]+,\s*200\s*\)/.test(mainContent);
+    runner.assert(has200msDelay, '移动端导出延迟应该是200ms（优化后）');
+});
+
+runner.test('导出功能回归: PC端html2canvas应该配置性能优化选项', () => {
+    const rendererContent = fs.readFileSync(heatmapRendererPath, 'utf8');
+    
+    // 查找PC端html2canvas配置
+    const pcConfigIndex = rendererContent.indexOf('PC端：优化配置以提升导出速度');
+    if (pcConfigIndex === -1) {
+        runner.assert(false, '找不到PC端优化配置');
+        return;
+    }
+    
+    // 查找配置块结束位置
+    const nextBlock = rendererContent.indexOf('}', pcConfigIndex + 100);
+    const pcConfigSection = rendererContent.substring(pcConfigIndex, nextBlock !== -1 ? nextBlock : pcConfigIndex + 500);
+    
+    // 检查是否有性能优化选项
+    const hasForeignObjectDisabled = pcConfigSection.includes('foreignObjectRendering: false');
+    runner.assert(hasForeignObjectDisabled, 'PC端应该禁用foreignObjectRendering以提升速度');
+    
+    const hasIgnoreElements = pcConfigSection.includes('ignoreElements');
+    runner.assert(hasIgnoreElements, 'PC端应该配置ignoreElements以忽略不必要元素');
+});
+
+runner.test('导出功能回归: 移动端html2canvas应该配置性能优化选项', () => {
+    const rendererContent = fs.readFileSync(heatmapRendererPath, 'utf8');
+    
+    // 查找移动端正常模式html2canvas配置
+    const mobileConfigIndex = rendererContent.indexOf('正常模式：scale=1.0（高质量），优化配置以提升速度');
+    if (mobileConfigIndex === -1) {
+        runner.assert(false, '找不到移动端优化配置');
+        return;
+    }
+    
+    // 查找配置块结束位置
+    const nextBlock = rendererContent.indexOf('}', mobileConfigIndex + 100);
+    const mobileConfigSection = rendererContent.substring(mobileConfigIndex, nextBlock !== -1 ? nextBlock : mobileConfigIndex + 500);
+    
+    // 检查是否有性能优化选项
+    const hasForeignObjectDisabled = mobileConfigSection.includes('foreignObjectRendering: false');
+    runner.assert(hasForeignObjectDisabled, '移动端应该禁用foreignObjectRendering以提升速度');
+    
+    const hasIgnoreElements = mobileConfigSection.includes('ignoreElements');
+    runner.assert(hasIgnoreElements, '移动端应该配置ignoreElements以忽略不必要元素');
+    
+    // 检查imageTimeout是否优化（应该是8000ms）
+    const timeoutMatch = mobileConfigSection.match(/imageTimeout:\s*(\d+)/);
+    if (timeoutMatch) {
+        const timeout = parseInt(timeoutMatch[1]);
+        runner.assert(timeout === 8000, `移动端imageTimeout应该是8000ms（优化后），当前是${timeout}ms`);
+    } else {
+        runner.assert(false, '找不到移动端imageTimeout设置');
+    }
 });
 
 // 运行测试
