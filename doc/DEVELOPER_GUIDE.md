@@ -1000,6 +1000,34 @@ function collectPerformanceMetrics() {
 
 ---
 
+## 🎬 视频生成功能代码审查
+
+### 功能概述
+视频生成功能允许用户生成展示轨迹随时间逐渐点亮过程的视频。该功能完全独立于原有导出功能，不会影响热力图导出。
+
+### 关键设计原则
+1. **功能隔离**: VideoGenerator类完全独立，不修改原有代码结构
+2. **状态恢复**: 视频生成完成后自动恢复原始热力图状态
+3. **错误处理**: 完善的try-catch-finally结构，确保状态恢复可靠
+4. **协议检测**: 自动检测file://协议，提供友好的错误提示
+
+### 核心文件
+- `js/video-generator.js`: 视频生成器核心逻辑
+- `js/heatmap-renderer.js`: 新增 `renderHeatmapWithTimeFilter()` 方法
+- `js/main.js`: 集成视频生成UI和事件处理
+
+### 状态管理
+- 视频生成前保存原始热力图状态（`originalPoints`, `originalBounds`）
+- 视频生成过程中禁用导出按钮，避免状态冲突
+- 视频生成完成后在finally块中恢复原始状态
+
+### 兼容性保证
+- 原有导出功能完全独立，不受影响
+- `renderHeatmap()` 方法未被修改
+- 导出按钮和视频生成按钮状态管理分离
+
+详细代码审查报告请参考项目根目录的 `CODE_REVIEW_VIDEO_FEATURE.md`。
+
 ## 🔮 扩展开发
 
 ### 功能扩展建议

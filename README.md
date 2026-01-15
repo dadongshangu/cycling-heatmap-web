@@ -34,65 +34,68 @@
 
 **注意：** 视频生成功能需要在HTTP服务器环境下运行，请参考下面的"本地部署"部分。
 
-### 本地部署
+### 本地部署（视频生成功能必需）
 
-**重要提示：** 视频生成功能需要在HTTP服务器环境下运行，不能直接在本地文件（file://）打开。
+**重要提示：** 视频生成功能需要在HTTP服务器环境下运行，不能直接在本地文件（file://）打开。基础热力图功能可以直接打开 `index.html` 使用。
 
 #### 快速启动（推荐）
 
 **Windows:**
 ```bash
-# 双击运行或在命令行执行
+# 方法1: 双击运行（最简单）
+快速启动.bat
+
+# 方法2: 使用启动脚本（自动检测端口）
 start-server.bat
+
+# 方法3: 手动启动
+npx http-server . -p 3000
 ```
 
 **Linux/Mac:**
 ```bash
-# 添加执行权限（首次运行）
+# 方法1: 使用启动脚本（自动检测端口）
 chmod +x start-server.sh
-
-# 运行脚本
 ./start-server.sh
+
+# 方法2: 手动启动
+npx http-server . -p 3000
+# 或
+python -m http.server 3000
 ```
 
-#### 手动启动方法
+#### 其他启动方法
 
-**方法1: 使用Python（推荐）**
+**使用Python:**
 ```bash
 # Python 3
-python -m http.server 8000
+python -m http.server 3000
 
 # Python 2
-python -m SimpleHTTPServer 8000
+python -m SimpleHTTPServer 3000
 ```
 
-**方法2: 使用Node.js**
-```bash
-# 使用http-server
-npx http-server . -p 8000
-
-# 或使用serve
-npx serve . -p 8000
-```
-
-**方法3: 使用VS Code Live Server扩展**
+**使用VS Code Live Server扩展:**
 1. 安装"Live Server"扩展
 2. 右键点击 `index.html`
 3. 选择 "Open with Live Server"
 4. 自动打开 `http://localhost:5500`
 
-**方法4: 使用PHP（如果已安装）**
+**使用PHP（如果已安装）:**
 ```bash
-php -S localhost:8000
+php -S localhost:3000
 ```
 
 #### 访问应用
 
 启动服务器后，在浏览器中访问：
-- Python/Node.js: `http://localhost:8000`
+- 默认端口: `http://localhost:3000`
+- 其他端口: `http://localhost:8000` 或 `http://localhost:8080`
 - VS Code Live Server: `http://localhost:5500`
 
-**注意：** 确保使用 `http://` 而不是 `file://`，否则视频生成功能无法使用。
+**注意：** 
+- 确保使用 `http://` 而不是 `file://`，否则视频生成功能无法使用
+- 如果端口被占用，启动脚本会自动尝试其他端口（3000, 8000, 8080, 5000）
 
 ## 📁 项目结构
 
@@ -113,11 +116,12 @@ cycling-heatmap-web/
 │   ├── check-syntax.js    # 语法检查脚本
 │   ├── check-files.js     # 文件完整性检查
 │   ├── check-quality.js   # 代码质量检查
-│   ├── test-all.js        # 综合测试脚本（旧版，向后兼容）
 │   ├── test/              # 测试系统目录
 │   │   ├── unit/          # 单元测试
 │   │   ├── regression/    # 回归测试
+│   │   │   └── test-all-regression.js  # 统一回归测试入口
 │   │   ├── fixtures/      # 测试数据
+│   │   ├── utils/          # 测试工具
 │   │   └── test-all.js    # 运行所有测试
 │   ├── pre-commit-hook.js        # Pre-commit hook（Node.js，跨平台）
 │   ├── pre-push-hook.js          # Pre-push hook（Node.js，跨平台）
@@ -127,13 +131,19 @@ cycling-heatmap-web/
 ├── doc/
 │   ├── TESTING_GUIDE.md   # 测试指南
 │   ├── DEVELOPER_GUIDE.md # 开发指南
-│   └── BUG_ANALYSIS_AND_PREVENTION.md # 错误分析
+│   ├── BUG_ANALYSIS_AND_PREVENTION.md # 错误分析
+│   └── OPTIMIZATION_SUGGESTIONS.md    # 优化建议
 ├── assets/
 │   └── demo/              # 示例轨迹记录GPX
 │       ├── README.md      # 示例文件说明
 │       ├── sample_beijing_ride.gpx
 │       └── sample_shanghai_ride.gpx
-└── README.md              # 项目说明
+├── js/
+│   └── video-generator.js # 视频生成器（新增）
+├── start-server.bat       # Windows服务器启动脚本
+├── start-server.sh        # Linux/Mac服务器启动脚本
+├── 快速启动.bat            # Windows快速启动脚本（推荐）
+└── 启动服务器.bat           # Windows详细启动脚本
 ```
 
 ### 依赖库 (通过CDN加载)
@@ -472,8 +482,10 @@ git push origin feature/new-feature
 项目包含自动测试系统，提交前会自动运行：
 
 ```bash
-# 手动运行所有测试
-node scripts/test-all.js
+# 手动运行所有测试（推荐）
+npm test
+# 或
+node scripts/test/test-all.js
 
 # 单独运行各项测试
 node scripts/check-syntax.js      # 语法检查
@@ -502,9 +514,29 @@ chmod +x scripts/setup-git-hooks.sh
 - ✅ HTML结构验证
 - ✅ 代码质量检查
 - ✅ 单元测试（GeoUtils、GPX解析器）
-- ✅ 回归测试（导出功能、FIT解析）
+- ✅ 回归测试（导出功能、FIT解析、视频生成）
 
 详细说明请参考：`doc/TESTING_GUIDE.md`
+
+## 📖 文档
+
+### 主要文档
+- **README.md** (本文件) - 项目概述和快速开始
+- **doc/DEVELOPER_GUIDE.md** - 完整开发指南，包含架构设计、代码结构、开发流程等
+- **doc/TESTING_GUIDE.md** - 测试指南，包含测试系统使用说明
+- **doc/BUG_ANALYSIS_AND_PREVENTION.md** - Bug分析和预防指南
+- **doc/OPTIMIZATION_SUGGESTIONS.md** - 性能优化建议
+
+### 代码审查
+- **CODE_REVIEW_VIDEO_FEATURE.md** - 视频生成功能代码审查报告
+
+### 测试文档
+- **scripts/test/REGRESSION_TEST_SUMMARY.md** - 回归测试总结
+- **scripts/test/README.md** - 测试系统说明
+- **scripts/README.md** - 脚本使用说明
+
+### 示例文件
+- **assets/demo/README.md** - 示例GPX文件说明
 
 ## 📄 许可证
 

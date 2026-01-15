@@ -37,6 +37,28 @@ node scripts/test/regression/test-export-regression.js
 node scripts/test/regression/test-fit-regression.js
 ```
 
+## 🧪 测试套件
+
+### 回归测试
+项目包含完整的回归测试套件，确保之前修复的问题不会再次出现：
+
+```bash
+# 运行所有回归测试
+npm run test:regression
+
+# 运行单个回归测试
+npm run test:regression:export  # 导出功能
+npm run test:regression:fit     # FIT解析
+npm run test:regression:video   # 视频生成
+```
+
+回归测试包括：
+- **导出功能回归测试**: 6个测试用例，验证导出功能正确性
+- **FIT解析回归测试**: 6个测试用例，验证FIT文件解析准确性
+- **视频生成回归测试**: 14个测试用例，验证视频生成功能正确性
+
+详细测试报告请参考 `scripts/test/regression/REGRESSION_TEST_SUMMARY.md`。
+
 ## 📝 测试内容
 
 ### 1. 语法检查 (`check-syntax.js`)
