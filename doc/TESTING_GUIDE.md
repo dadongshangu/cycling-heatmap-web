@@ -30,7 +30,7 @@ node scripts/check-quality.js
 
 # 单元测试
 node scripts/test/unit/test-geo-utils.js
-node scripts/test/unit/test-gpx-parser.js
+# 注意: GPX解析器测试已移除（需要 @xmldom/xmldom 依赖）
 
 # 回归测试
 node scripts/test/regression/test-export-regression.js
@@ -129,16 +129,16 @@ npm run test:regression:video   # 视频生成
   - `toRadians` 函数测试
   - `haversineDistance` 函数测试
   - 距离计算准确性验证
-- **GPX解析器测试** (`test-gpx-parser.js`) - 测试GPX文件解析
-  - 文件解析功能
-  - 轨迹点提取
-  - 坐标验证
-  - 距离计算
+- **GeoUtils单元测试** (`test-geo-utils.js`) - 测试地理工具函数
+  - `toRadians` 函数测试
+  - `haversineDistance` 函数测试
+  - 距离计算准确性验证
+
+**注意：** GPX解析器测试已移除（需要 `@xmldom/xmldom` 依赖，但项目不需要此依赖）
 
 **运行方式：**
 ```bash
 node scripts/test/unit/test-geo-utils.js
-node scripts/test/unit/test-gpx-parser.js
 ```
 
 ### 5. 回归测试 (`scripts/test/regression/`)
@@ -379,7 +379,7 @@ git commit --allow-empty -m "Test commit"
 scripts/test/
   unit/              # 单元测试
     test-geo-utils.js
-    test-gpx-parser.js
+    # test-gpx-parser.js (已移除，需要 @xmldom/xmldom 依赖)
   regression/        # 回归测试
     test-export-regression.js
     test-fit-regression.js
