@@ -39,7 +39,7 @@
                             <p class="upload-subtext">支持 GPX 和 FIT 格式</p>
                             <input type="file" id="fileInput" multiple accept=".gpx,.GPX,.fit,.FIT" style="display: none;">
                             <button class="upload-btn" id="selectFileBtn">
-                                选择文件
+                                <span class="step-number">1</span> 选择文件
                             </button>
                             <button class="help-btn" id="gpxGuideBtn" onclick="showGpxGuide()">
                                 📖 如何获取轨迹记录GPX？
@@ -68,7 +68,7 @@
                 <!-- Generate Button Section -->
                 <div class="generate-section">
                     <button class="generate-btn-large" id="generateBtn" disabled>
-                        🗺️ 生成热力图
+                        <span class="step-number">2</span> 🗺️ 生成热力图
                     </button>
                     <p class="generate-hint">上传轨迹记录（GPX/FIT）后点击生成</p>
                 </div>
@@ -213,7 +213,7 @@
                     <!-- Map Controls -->
                     <div class="map-controls">
                         <button class="map-control-btn map-control-btn-primary" id="exportBtn" title="导出热力图为PNG" disabled>
-                            📷 导出热力图
+                            <span class="step-number">3</span> 📷 导出热力图
                         </button>
                         <button class="map-control-btn map-control-btn-secondary" id="generateVideoBtn" title="生成增长视频" disabled>
                             🎬 视频
