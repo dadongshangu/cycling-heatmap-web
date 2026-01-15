@@ -1,6 +1,6 @@
 {
   "name": "cycling-heatmap-web",
-  "version": "1.0.0",
+  "version": "1.01",
   "description": "一个基于Web的GPS轨迹热力图生成器，专注于骑行，同时支持徒步、跑步等所有GPS轨迹。将GPX轨迹文件转换为Strava风格的交互式热力图。",
   "main": "index.js",
   "directories": {
