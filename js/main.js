@@ -232,6 +232,7 @@ class CyclingHeatmapApp {
         const exportBtn = this.getElement('exportBtn');
         const fullscreenBtn = this.getElement('fullscreenBtn');
         const generateVideoBtn = this.getElement('generateVideoBtn');
+        const checkVideoBtn = this.getElement('checkVideoBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', this.exportMap.bind(this));
         }
@@ -240,6 +241,9 @@ class CyclingHeatmapApp {
         }
         if (generateVideoBtn) {
             generateVideoBtn.addEventListener('click', this.showVideoConfigModal.bind(this));
+        }
+        if (checkVideoBtn) {
+            checkVideoBtn.addEventListener('click', this.checkCompletedVideos.bind(this));
         }
         
         // 检测全屏API支持，如果不支持则隐藏全屏按钮
@@ -1609,6 +1613,15 @@ class CyclingHeatmapApp {
      * 导出地图
      */
     async exportMap() {
+        // 检查视频生成是否正在进行中（防止状态冲突）
+        const isVideoGenerating = this.videoGenerator && 
+                                   typeof this.videoGenerator.isGenerating !== 'undefined' && 
+                                   this.videoGenerator.isGenerating;
+        if (isVideoGenerating) {
+            this.showMessage('视频生成正在进行中，请稍后再导出', 'warning');
+            return;
+        }
+        
         if (!this.heatmapRenderer.heatLayer) {
             this.showMessage('请先生成热力图再导出', 'warning');
             return;
@@ -1897,6 +1910,8 @@ class CyclingHeatmapApp {
             exportBtn.disabled = true;
         }
 
+        // 监听长时间生成事件
+        let longTimeHandler = null;
         try {
             // 显示视频生成进度模态框
             const progressModal = document.getElementById('videoProgressModal');
@@ -1917,12 +1932,20 @@ class CyclingHeatmapApp {
                 }
             };
 
+            // 设置长时间生成事件监听器
+            longTimeHandler = (event) => {
+                const { generationId, estimatedTime, totalFrames } = event.detail;
+                this.handleLongTimeGeneration(generationId, estimatedTime, totalFrames);
+            };
+            document.addEventListener('videoGenerationLongTime', longTimeHandler);
+
             // 生成视频
             const videoBlob = await this.videoGenerator.generateVideo(
                 this.loadedTracks,
                 startDate,
                 endDate,
-                progressCallback
+                progressCallback,
+                false // 前台模式
             );
 
             // 下载视频
@@ -1973,10 +1996,171 @@ class CyclingHeatmapApp {
                 this.showMessage('视频生成失败: ' + errorMsg, 'error');
             }
         } finally {
+            // 移除事件监听器
+            if (longTimeHandler) {
+                document.removeEventListener('videoGenerationLongTime', longTimeHandler);
+            }
+            
             // 恢复导出按钮状态
             if (exportBtn) {
                 exportBtn.disabled = originalExportDisabled;
             }
+        }
+    }
+
+    /**
+     * 处理长时间视频生成
+     * @param {string} generationId - 生成任务ID
+     * @param {number} estimatedTime - 估算时间（秒）
+     * @param {number} totalFrames - 总帧数
+     */
+    handleLongTimeGeneration(generationId, estimatedTime, totalFrames) {
+        const minutes = Math.ceil(estimatedTime / 60);
+        const message = `视频生成预计需要约 ${minutes} 分钟（${totalFrames} 帧）。\n\n` +
+                       `视频将在后台生成，完成后会自动保存到浏览器本地存储。\n\n` +
+                       `您可以：\n` +
+                       `1. 继续等待（推荐，可以实时查看进度）\n` +
+                       `2. 关闭此提示，视频将在后台继续生成\n` +
+                       `3. 稍后通过"检查已完成视频"功能查看结果\n\n` +
+                       `如果生成失败，请检查浏览器控制台的错误信息。`;
+        
+        // 显示确认对话框
+        const userChoice = confirm(message);
+        
+        if (!userChoice) {
+            // 用户选择继续等待，显示后台生成提示
+            this.showBackgroundGenerationInfo(generationId, estimatedTime);
+        }
+    }
+
+    /**
+     * 显示后台生成信息
+     * @param {string} generationId - 生成任务ID
+     * @param {number} estimatedTime - 估算时间（秒）
+     */
+    showBackgroundGenerationInfo(generationId, estimatedTime) {
+        const minutes = Math.ceil(estimatedTime / 60);
+        const completionTime = new Date(Date.now() + estimatedTime * 1000);
+        const timeString = completionTime.toLocaleTimeString('zh-CN', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+        });
+        
+        const infoMessage = `视频正在后台生成中...\n\n` +
+                           `任务ID: ${generationId}\n` +
+                           `预计完成时间: 约 ${minutes} 分钟后（${timeString}）\n\n` +
+                           `您可以：\n` +
+                           `1. 继续使用其他功能（视频会在后台继续生成）\n` +
+                           `2. 稍后点击"检查已完成视频"查看结果\n` +
+                           `3. 如果生成失败，请检查浏览器控制台\n\n` +
+                           `提示：视频生成完成后会自动保存到浏览器本地存储。`;
+        
+        this.showMessage(infoMessage, 'info');
+        
+        // 保存任务ID到localStorage，以便后续检查
+        try {
+            const pendingTasks = JSON.parse(localStorage.getItem('pendingVideoTasks') || '[]');
+            if (!pendingTasks.includes(generationId)) {
+                pendingTasks.push({
+                    id: generationId,
+                    startTime: Date.now(),
+                    estimatedTime: estimatedTime
+                });
+                localStorage.setItem('pendingVideoTasks', JSON.stringify(pendingTasks));
+            }
+        } catch (e) {
+            logger.warn('保存任务ID失败:', e);
+        }
+    }
+
+    /**
+     * 检查并下载已完成的视频
+     */
+    async checkCompletedVideos() {
+        if (!this.videoGenerator) {
+            this.showMessage('视频生成器未初始化', 'warning');
+            return;
+        }
+
+        try {
+            // 获取待处理的任务
+            const pendingTasks = JSON.parse(localStorage.getItem('pendingVideoTasks') || '[]');
+            
+            if (pendingTasks.length === 0) {
+                this.showMessage('没有待处理的视频任务', 'info');
+                return;
+            }
+
+            this.showLoading(true, '正在检查已完成的视频...');
+
+            let foundCompleted = false;
+            const remainingTasks = [];
+
+            for (const task of pendingTasks) {
+                const videoBlob = await this.videoGenerator.recoverVideo(task.id);
+                
+                if (videoBlob) {
+                    // 视频已完成，下载它
+                    foundCompleted = true;
+                    const url = URL.createObjectURL(videoBlob);
+                    const now = new Date();
+                    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                    const filename = `cycling-heatmap-video-${timestamp}.mp4`;
+
+                    const link = document.createElement('a');
+                    link.download = filename;
+                    link.href = url;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+
+                    // 删除任务记录
+                    await this.videoGenerator.deleteProgress(task.id);
+                    this.showMessage(`视频已下载: ${filename}`, 'success');
+                } else {
+                    // 检查任务状态
+                    const progress = await this.videoGenerator.getProgress(task.id);
+                    if (progress) {
+                        if (progress.status === 'failed') {
+                            this.showMessage(
+                                `任务 ${task.id} 生成失败: ${progress.error || '未知错误'}\n\n` +
+                                `请检查浏览器控制台获取详细错误信息。`,
+                                'error'
+                            );
+                            // 删除失败的任务
+                            await this.videoGenerator.deleteProgress(task.id);
+                        } else if (progress.status === 'running') {
+                            // 仍在运行中，保留任务
+                            remainingTasks.push(task);
+                        }
+                    } else {
+                        // 任务不存在，可能是已删除或过期
+                        remainingTasks.push(task);
+                    }
+                }
+            }
+
+            // 更新待处理任务列表
+            localStorage.setItem('pendingVideoTasks', JSON.stringify(remainingTasks));
+
+            if (!foundCompleted) {
+                if (remainingTasks.length > 0) {
+                    this.showMessage(
+                        `有 ${remainingTasks.length} 个任务仍在处理中，请稍后再试`,
+                        'info'
+                    );
+                } else {
+                    this.showMessage('没有找到已完成的视频', 'info');
+                }
+            }
+
+        } catch (error) {
+            logger.error('检查已完成视频失败:', error);
+            this.showMessage('检查视频失败: ' + (error.message || '未知错误'), 'error');
+        } finally {
+            this.showLoading(false);
         }
     }
 
@@ -1993,12 +2177,14 @@ class CyclingHeatmapApp {
             progressModal.style.display = 'none';
         }
 
-        // 恢复导出按钮状态（视频生成器会在finally中恢复热力图）
-        const exportBtn = this.getElement('exportBtn');
-        if (exportBtn && this.heatmapRenderer.heatLayer) {
-            // 只有在热力图存在时才启用导出按钮
-            exportBtn.disabled = false;
-        }
+        // 延迟恢复导出按钮，确保视频生成器的finally块已执行
+        setTimeout(() => {
+            const exportBtn = this.getElement('exportBtn');
+            if (exportBtn && this.heatmapRenderer.heatLayer && 
+                (!this.videoGenerator || !this.videoGenerator.isGenerating)) {
+                exportBtn.disabled = false;
+            }
+        }, 100);
 
         this.showMessage('正在取消视频生成...', 'info');
     }

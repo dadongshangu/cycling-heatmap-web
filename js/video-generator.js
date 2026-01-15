@@ -11,6 +11,8 @@ class VideoGenerator {
         this.ffmpegLoading = false;
         this.isGenerating = false;
         this.cancelRequested = false;
+        this.currentGenerationId = null; // 当前生成任务的ID
+        this.generationStartTime = null; // 生成开始时间
     }
 
     /**
@@ -141,10 +143,49 @@ class VideoGenerator {
                 throw new Error('无法加载FFmpeg核心文件。请检查网络连接。');
             }
             
-            await this.ffmpeg.load({
+            // 尝试加载Worker文件（修复CORS问题）
+            let workerURL = null;
+            try {
+                // 尝试从CDN加载Worker并转换为Blob URL（解决CORS问题）
+                const workerBaseURLs = [
+                    'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js',
+                    'https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm/worker.js'
+                ];
+                
+                for (const workerBaseURL of workerBaseURLs) {
+                    try {
+                        if (fetchFile) {
+                            const workerData = await fetchFile(workerBaseURL);
+                            // 创建Blob URL以解决CORS问题
+                            const workerBlob = new Blob([workerData], { type: 'application/javascript' });
+                            workerURL = URL.createObjectURL(workerBlob);
+                            break;
+                        } else if (toBlobURL) {
+                            workerURL = await toBlobURL(workerBaseURL, 'application/javascript');
+                            break;
+                        }
+                    } catch (workerError) {
+                        logger.warn(`从${workerBaseURL}加载Worker失败，尝试下一个:`, workerError);
+                        continue;
+                    }
+                }
+            } catch (workerError) {
+                logger.warn('Worker加载失败，将使用默认配置:', workerError);
+                // Worker加载失败不影响核心功能，继续使用默认配置
+            }
+            
+            // 配置FFmpeg加载选项
+            const loadOptions = {
                 coreURL: coreJS,
                 wasmURL: coreWASM,
-            });
+            };
+            
+            // 如果成功加载了Worker，使用它
+            if (workerURL) {
+                loadOptions.workerURL = workerURL;
+            }
+            
+            await this.ffmpeg.load(loadOptions);
 
             this.ffmpegLoaded = true;
             if (logger && logger.info) {
@@ -358,20 +399,126 @@ class VideoGenerator {
     }
 
     /**
+     * 初始化IndexedDB（用于保存视频生成进度）
+     * @returns {Promise<IDBDatabase>}
+     */
+    async initIndexedDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('VideoGeneratorDB', 1);
+            
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains('videoGenerations')) {
+                    const store = db.createObjectStore('videoGenerations', { keyPath: 'id' });
+                    store.createIndex('timestamp', 'timestamp', { unique: false });
+                }
+            };
+        });
+    }
+
+    /**
+     * 保存视频生成进度到IndexedDB
+     * @param {string} generationId - 生成任务ID
+     * @param {Object} progressData - 进度数据
+     */
+    async saveProgress(generationId, progressData) {
+        try {
+            const db = await this.initIndexedDB();
+            const transaction = db.transaction(['videoGenerations'], 'readwrite');
+            const store = transaction.objectStore('videoGenerations');
+            
+            const data = {
+                id: generationId,
+                timestamp: Date.now(),
+                ...progressData
+            };
+            
+            await store.put(data);
+        } catch (error) {
+            logger.warn('保存进度失败:', error);
+        }
+    }
+
+    /**
+     * 获取视频生成进度
+     * @param {string} generationId - 生成任务ID
+     * @returns {Promise<Object|null>}
+     */
+    async getProgress(generationId) {
+        try {
+            const db = await this.initIndexedDB();
+            const transaction = db.transaction(['videoGenerations'], 'readonly');
+            const store = transaction.objectStore('videoGenerations');
+            const request = store.get(generationId);
+            
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        } catch (error) {
+            logger.warn('获取进度失败:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 删除视频生成进度
+     * @param {string} generationId - 生成任务ID
+     */
+    async deleteProgress(generationId) {
+        try {
+            const db = await this.initIndexedDB();
+            const transaction = db.transaction(['videoGenerations'], 'readwrite');
+            const store = transaction.objectStore('videoGenerations');
+            await store.delete(generationId);
+        } catch (error) {
+            logger.warn('删除进度失败:', error);
+        }
+    }
+
+    /**
+     * 生成唯一的任务ID
+     * @returns {string}
+     */
+    generateTaskId() {
+        return `video_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
+
+    /**
+     * 估算视频生成时间（秒）
+     * @param {number} totalFrames - 总帧数
+     * @returns {number} 估算时间（秒）
+     */
+    estimateGenerationTime(totalFrames) {
+        // 每帧大约需要0.5-1秒（包括渲染和编码）
+        const secondsPerFrame = 0.8;
+        return Math.ceil(totalFrames * secondsPerFrame);
+    }
+
+    /**
      * 生成视频
      * @param {Array} tracks - 轨迹数组
      * @param {Date} startDate - 开始日期
      * @param {Date} endDate - 结束日期
      * @param {Function} progressCallback - 进度回调函数 (progress) => void
+     * @param {boolean} backgroundMode - 是否后台模式（默认false）
      * @returns {Promise<Blob>} 视频Blob
      */
-    async generateVideo(tracks, startDate, endDate, progressCallback) {
+    async generateVideo(tracks, startDate, endDate, progressCallback, backgroundMode = false) {
         if (this.isGenerating) {
             throw new Error('视频生成正在进行中');
         }
 
         this.isGenerating = true;
         this.cancelRequested = false;
+        
+        // 生成任务ID
+        const generationId = this.generateTaskId();
+        this.currentGenerationId = generationId;
+        this.generationStartTime = Date.now();
 
         // 保存原始热力图状态，以便生成完成后恢复
         const originalHeatLayer = this.heatmapRenderer.heatLayer;
@@ -427,11 +574,37 @@ class VideoGenerator {
                 throw new Error('在指定时间范围内没有轨迹点');
             }
 
+            // 估算生成时间
+            const estimatedTime = this.estimateGenerationTime(timeWindows.length);
+            
+            // 保存初始进度
+            await this.saveProgress(generationId, {
+                stage: 'initializing',
+                progress: 0,
+                totalFrames: timeWindows.length,
+                estimatedTime: estimatedTime,
+                startTime: this.generationStartTime,
+                status: 'running'
+            });
+
             // 加载FFmpeg
             if (progressCallback) {
                 progressCallback({ stage: 'loading', progress: 20, message: '正在加载视频处理库...' });
             }
             await this.loadFFmpeg();
+            
+            // 如果估算时间超过30秒，建议后台模式
+            if (!backgroundMode && estimatedTime > 30) {
+                // 触发事件，让主应用决定是否切换到后台模式
+                const event = new CustomEvent('videoGenerationLongTime', {
+                    detail: {
+                        generationId: generationId,
+                        estimatedTime: estimatedTime,
+                        totalFrames: timeWindows.length
+                    }
+                });
+                document.dispatchEvent(event);
+            }
 
             // 生成帧序列
             const frames = [];
@@ -460,6 +633,18 @@ class VideoGenerator {
                 const frameData = this.dataURLToUint8Array(frameDataURL);
                 frames.push(frameData);
 
+                // 定期保存进度（每10帧保存一次）
+                if (i % 10 === 0 || i === totalFrames - 1) {
+                    await this.saveProgress(generationId, {
+                        stage: 'generating',
+                        progress: progress,
+                        currentFrame: i + 1,
+                        totalFrames: totalFrames,
+                        status: 'running',
+                        framesGenerated: frames.length
+                    });
+                }
+
                 // 让出控制权，避免阻塞UI
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
@@ -468,6 +653,12 @@ class VideoGenerator {
             if (progressCallback) {
                 progressCallback({ stage: 'encoding', progress: 80, message: '正在合成视频...' });
             }
+            
+            await this.saveProgress(generationId, {
+                stage: 'encoding',
+                progress: 80,
+                status: 'running'
+            });
 
             // 将帧写入FFmpeg文件系统
             for (let i = 0; i < frames.length; i++) {
@@ -489,6 +680,7 @@ class VideoGenerator {
 
             // 读取生成的视频
             const videoData = await this.ffmpeg.readFile('output.mp4');
+            const videoBlob = new Blob([videoData.buffer], { type: 'video/mp4' });
 
             // 清理临时文件
             for (let i = 0; i < frames.length; i++) {
@@ -497,14 +689,34 @@ class VideoGenerator {
             }
             await this.ffmpeg.deleteFile('output.mp4');
 
+            // 保存完成的视频到IndexedDB
+            const videoArrayBuffer = await videoBlob.arrayBuffer();
+            await this.saveProgress(generationId, {
+                stage: 'complete',
+                progress: 100,
+                status: 'completed',
+                videoData: videoArrayBuffer,
+                completedTime: Date.now()
+            });
+
             if (progressCallback) {
                 progressCallback({ stage: 'complete', progress: 100, message: '视频生成完成！' });
             }
 
-            return new Blob([videoData.buffer], { type: 'video/mp4' });
+            return videoBlob;
 
         } catch (error) {
             logger.error('视频生成失败:', error);
+            
+            // 保存错误状态
+            await this.saveProgress(generationId, {
+                stage: 'error',
+                progress: 0,
+                status: 'failed',
+                error: error.message,
+                failedTime: Date.now()
+            });
+            
             throw error;
         } finally {
             // 恢复原始热力图状态
@@ -528,6 +740,51 @@ class VideoGenerator {
             
             this.isGenerating = false;
             this.cancelRequested = false;
+            this.currentGenerationId = null;
+            this.generationStartTime = null;
+        }
+    }
+
+    /**
+     * 从IndexedDB恢复并下载已完成的视频
+     * @param {string} generationId - 生成任务ID
+     * @returns {Promise<Blob|null>} 视频Blob，如果不存在则返回null
+     */
+    async recoverVideo(generationId) {
+        const progress = await this.getProgress(generationId);
+        if (!progress || progress.status !== 'completed' || !progress.videoData) {
+            return null;
+        }
+        
+        return new Blob([progress.videoData], { type: 'video/mp4' });
+    }
+
+    /**
+     * 检查是否有未完成的视频生成任务
+     * @returns {Promise<Array>} 未完成的任务列表
+     */
+    async getPendingGenerations() {
+        try {
+            const db = await this.initIndexedDB();
+            const transaction = db.transaction(['videoGenerations'], 'readonly');
+            const store = transaction.objectStore('videoGenerations');
+            const index = store.index('timestamp');
+            const request = index.getAll();
+            
+            return new Promise((resolve, reject) => {
+                request.onsuccess = () => {
+                    const all = request.result || [];
+                    // 过滤出未完成的任务
+                    const pending = all.filter(item => 
+                        item.status === 'running' || item.status === 'completed'
+                    );
+                    resolve(pending);
+                };
+                request.onerror = () => reject(request.error);
+            });
+        } catch (error) {
+            logger.warn('获取待处理任务失败:', error);
+            return [];
         }
     }
 
