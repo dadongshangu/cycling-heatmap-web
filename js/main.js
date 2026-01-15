@@ -1675,7 +1675,8 @@ class CyclingHeatmapApp {
                 // 减少延迟时间，从500ms降到200ms，提升响应速度
                 await new Promise(resolve => setTimeout(resolve, 200));
                 
-                const totalTimeout = 20000;
+                // 增加超时时间到 30 秒，因为 html2canvas 处理大图可能需要更长时间
+                const totalTimeout = 30000;
                 try {
                     const exportPromise = this.heatmapRenderer.exportAndDownload(undefined, false);
                     const timeoutPromise = new Promise((_, reject) => {

@@ -13,6 +13,10 @@ console.log('🚀 运行推送前完整测试...\n');
 const projectRoot = path.resolve(__dirname, '../..');
 
 try {
+    // 先更新版本号（在测试之前，这样如果测试失败，版本号不会更新）
+    // 但为了确保版本号更新，我们在测试通过后更新
+    let versionUpdated = false;
+    
     // 运行所有测试
     execSync(`node "${path.join(projectRoot, 'scripts/test/test-all.js')}"`, {
         stdio: 'inherit',
@@ -26,6 +30,19 @@ try {
             stdio: 'inherit',
             cwd: projectRoot
         });
+        versionUpdated = true;
+        
+        // 版本号更新后，需要再次添加到暂存区并提示用户
+        try {
+            execSync(`git add VERSION package.json`, {
+                stdio: 'inherit',
+                cwd: projectRoot
+            });
+            console.log('\n📝 版本号已更新并添加到暂存区，请在推送前确认提交。');
+            console.log('💡 提示: 如果这是您想要的版本号，可以运行: git commit --amend --no-edit');
+        } catch (gitError) {
+            console.warn('\n⚠️  版本号文件添加到暂存区失败:', gitError.message);
+        }
     } catch (versionError) {
         console.warn('\n⚠️  版本号更新失败，但不影响推送:', versionError.message);
     }

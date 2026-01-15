@@ -115,14 +115,14 @@ runner.test('导出功能回归: main.js中移动端导出应该直接显示模�
     runner.assert(hasDirectModal, 'Web Share失败后应该直接显示模态框');
 });
 
-runner.test('导出功能回归: PC端超时应该由main.js统一管理（20秒）', () => {
+runner.test('导出功能回归: PC端超时应该由main.js统一管理（30秒）', () => {
     const mainContent = fs.readFileSync(mainJsPath, 'utf8');
     const rendererContent = fs.readFileSync(heatmapRendererPath, 'utf8');
     
-    // 检查main.js中PC端超时设置为20秒
-    const pcTimeoutPattern = /totalTimeout\s*=\s*20000/;
+    // 检查main.js中PC端超时设置为30秒（因为 html2canvas 处理大图需要更长时间）
+    const pcTimeoutPattern = /totalTimeout\s*=\s*30000/;
     const hasCorrectTimeout = pcTimeoutPattern.test(mainContent);
-    runner.assert(hasCorrectTimeout, 'main.js中PC端超时应该设置为20000（20秒）');
+    runner.assert(hasCorrectTimeout, 'main.js中PC端超时应该设置为30000（30秒）');
     
     // 检查heatmap-renderer.js中PC端不应该有超时设置
     const pcConfigStart = rendererContent.indexOf('// PC端：完全使用原有配置');

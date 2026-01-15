@@ -1054,8 +1054,13 @@ class HeatmapRenderer {
 
             // 创建 script 标签动态加载
             const script = document.createElement('script');
-            script.src = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
+            // 使用 jsdelivr CDN（更可靠，避免 Tracking Prevention 问题），带备用方案
+            script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+            script.crossOrigin = 'anonymous';
             script.async = true;
+            
+            // 备用 CDN（如果 jsdelivr 失败）
+            const fallbackSrc = 'https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js';
             
             // 设置超时（30秒）
             const timeoutId = setTimeout(() => {
@@ -1114,6 +1119,14 @@ class HeatmapRenderer {
 
             // 加载失败
             script.onerror = () => {
+                // 如果主 CDN 失败，尝试备用 CDN
+                if (script.src !== fallbackSrc) {
+                    console.warn('jsdelivr CDN 加载失败，尝试备用 CDN:', script.src);
+                    script.src = fallbackSrc;
+                    script.crossOrigin = null; // 移除 crossOrigin，因为 unpkg 可能不支持
+                    return; // 不 reject，继续尝试备用 CDN
+                }
+                // 备用 CDN 也失败
                 clearTimeout(timeoutId);
                 script.remove();
                 this.html2canvasLoading = false;
