@@ -142,8 +142,7 @@ cycling-heatmap-web/
 │   └── video-generator.js # 视频生成器（新增）
 ├── start-server.bat       # Windows服务器启动脚本
 ├── start-server.sh        # Linux/Mac服务器启动脚本
-├── 快速启动.bat            # Windows快速启动脚本（推荐）
-└── 启动服务器.bat           # Windows详细启动脚本
+└── 快速启动.bat            # Windows快速启动脚本（推荐）
 ```
 
 ### 依赖库 (通过CDN加载)
