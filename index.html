@@ -5,8 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🚴 运动轨迹热力图生成器 - 支持骑行/徒步/跑步等GPS轨迹热力图生成</title>
     
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet CSS - 使用 jsDelivr CDN（更可靠，避免 Tracking Prevention 问题） -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin="anonymous"
+          onerror="this.onerror=null; this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';" />
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
@@ -1036,16 +1039,56 @@
             };
         })();
     </script>
-    <!-- 使用 unpkg CDN，并添加错误处理 -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
-            onerror="console.error('Leaflet 库加载失败，请检查网络连接')"></script>
-    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"
-            onerror="console.error('Leaflet.heat 库加载失败，请检查网络连接')"></script>
+    <!-- Leaflet JS - 使用 jsDelivr CDN（更可靠，避免 Tracking Prevention 问题），带备用方案 -->
+    <script>
+        // 动态加载 Leaflet，带备用 CDN
+        (function() {
+            const loadScript = (src, fallbackSrc, onError) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.crossOrigin = 'anonymous';
+                script.onerror = function() {
+                    if (fallbackSrc && script.src !== fallbackSrc) {
+                        console.warn('CDN加载失败，尝试备用CDN:', src);
+                        script.src = fallbackSrc;
+                        script.onerror = onError;
+                    } else {
+                        onError();
+                    }
+                };
+                script.onload = function() {
+                    console.log('成功加载:', script.src.includes('jsdelivr') ? 'jsDelivr CDN' : 'unpkg CDN');
+                };
+                document.head.appendChild(script);
+            };
+            
+            // 加载 Leaflet.js
+            loadScript(
+                'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+                'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+                function() {
+                    console.error('❌ Leaflet 库加载失败，请检查网络连接或使用本地服务器');
+                }
+            );
+            
+            // 加载 Leaflet.heat.js（依赖 Leaflet）
+            setTimeout(() => {
+                loadScript(
+                    'https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js',
+                    'https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js',
+                    function() {
+                        console.error('❌ Leaflet.heat 库加载失败，请检查网络连接或使用本地服务器');
+                    }
+                );
+            }, 100);
+        })();
+    </script>
     <!-- html2canvas 已改为延迟加载，仅在需要导出时加载 -->
     <script src="js/utils.js"></script>
     <script src="js/map-config.js"></script>
     <!-- fit-file-parser 库（可选，如果文件不存在会自动降级到手动解析） -->
-    <script src="js/fit-file-parser.min.js" defer></script>
+    <script src="js/fit-file-parser.min.js" defer
+            onerror="this.onerror=null; console.warn('[WARN] fit-file-parser 库未加载,将使用手动解析(可能不够准确)。请参考 FIT_LIBRARY_SETUP.md 下载库文件。');"></script>
     <script src="js/gpx-parser.js"></script>
     <script src="js/fit-parser.js"></script>
     <script src="js/heatmap-renderer.js"></script>
