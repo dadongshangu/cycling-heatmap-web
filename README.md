@@ -25,33 +25,74 @@
 
 ## 🚀 快速开始
 
-### 在线使用
+### 在线使用（基础功能）
 1. 直接打开 `index.html` 文件
 2. 拖拽或选择轨迹记录GPX上传
 3. 调整参数设置（可选）
 4. 点击"生成热力图"按钮
 5. 在地图上查看结果
 
+**注意：** 视频生成功能需要在HTTP服务器环境下运行，请参考下面的"本地部署"部分。
+
 ### 本地部署
+
+**重要提示：** 视频生成功能需要在HTTP服务器环境下运行，不能直接在本地文件（file://）打开。
+
+#### 快速启动（推荐）
+
+**Windows:**
 ```bash
-# 克隆项目
-git clone <repository-url>
-
-# 进入Web版本目录
-cd bike_heat_web_version
-
-# 使用任意HTTP服务器运行
-# 方法1: 使用Python
-python -m http.server 8000
-
-# 方法2: 使用Node.js
-npx serve .
-
-# 方法3: 使用Live Server (VS Code扩展)
-# 右键index.html -> Open with Live Server
+# 双击运行或在命令行执行
+start-server.bat
 ```
 
-然后在浏览器中访问 `http://localhost:8000`
+**Linux/Mac:**
+```bash
+# 添加执行权限（首次运行）
+chmod +x start-server.sh
+
+# 运行脚本
+./start-server.sh
+```
+
+#### 手动启动方法
+
+**方法1: 使用Python（推荐）**
+```bash
+# Python 3
+python -m http.server 8000
+
+# Python 2
+python -m SimpleHTTPServer 8000
+```
+
+**方法2: 使用Node.js**
+```bash
+# 使用http-server
+npx http-server . -p 8000
+
+# 或使用serve
+npx serve . -p 8000
+```
+
+**方法3: 使用VS Code Live Server扩展**
+1. 安装"Live Server"扩展
+2. 右键点击 `index.html`
+3. 选择 "Open with Live Server"
+4. 自动打开 `http://localhost:5500`
+
+**方法4: 使用PHP（如果已安装）**
+```bash
+php -S localhost:8000
+```
+
+#### 访问应用
+
+启动服务器后，在浏览器中访问：
+- Python/Node.js: `http://localhost:8000`
+- VS Code Live Server: `http://localhost:5500`
+
+**注意：** 确保使用 `http://` 而不是 `file://`，否则视频生成功能无法使用。
 
 ## 📁 项目结构
 

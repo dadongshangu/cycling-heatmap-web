@@ -209,8 +209,11 @@
 
                     <!-- Map Controls -->
                     <div class="map-controls">
-                        <button class="map-control-btn" id="exportBtn" title="导出为PNG" disabled>
-                            📷 导出
+                        <button class="map-control-btn map-control-btn-primary" id="exportBtn" title="导出热力图为PNG" disabled>
+                            📷 导出热力图
+                        </button>
+                        <button class="map-control-btn map-control-btn-secondary" id="generateVideoBtn" title="生成增长视频" disabled>
+                            🎬 视频
                         </button>
                         <button class="map-control-btn" id="fullscreenBtn" title="全屏显示">
                             🔍 全屏
@@ -866,6 +869,72 @@
         </div>
     </div>
 
+    <!-- Video Config Modal -->
+    <div class="modal" id="videoConfigModal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close" onclick="window.app.closeVideoConfigModal()">&times;</span>
+            <h2>🎬 生成热力图增长视频</h2>
+            <div style="padding: 20px 0;">
+                <p style="margin-bottom: 20px; color: #6c757d; line-height: 1.6;">
+                    生成展示轨迹随时间逐渐点亮过程的视频。选择时间范围后，系统会自动选择合适的时间粒度。
+                </p>
+
+                <div class="control-group" style="margin-bottom: 20px;">
+                    <label for="videoStartDate" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        开始时间：
+                    </label>
+                    <input type="date" id="videoStartDate" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+
+                <div class="control-group" style="margin-bottom: 20px;">
+                    <label for="videoEndDate" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                        结束时间：
+                    </label>
+                    <input type="date" id="videoEndDate" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                </div>
+
+                <div style="background: #fff3cd; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; color: #856404; font-size: 0.9rem; line-height: 1.5;">
+                        ⚠️ <strong>注意：</strong>视频生成需要较长时间，特别是数据量较大时。建议在PC端使用，并确保网络连接稳定。
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="upload-btn" onclick="window.app.generateVideo()" style="flex: 1;">
+                        开始生成
+                    </button>
+                    <button class="upload-btn" onclick="window.app.closeVideoConfigModal()" style="flex: 1; background: #6c757d;">
+                        取消
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Progress Modal -->
+    <div class="modal" id="videoProgressModal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2>🎬 正在生成视频</h2>
+            <div style="padding: 20px 0;">
+                <div style="margin-bottom: 20px;">
+                    <div style="background: #f0f0f0; border-radius: 10px; height: 30px; overflow: hidden; position: relative;">
+                        <div id="videoProgressBar" style="background: #17a2b8; height: 100%; width: 0%; transition: width 0.3s ease; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85rem; font-weight: 500;">
+                        </div>
+                    </div>
+                    <p id="videoProgressText" style="text-align: center; margin-top: 10px; color: #6c757d;">
+                        处理中...
+                    </p>
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button class="upload-btn" onclick="window.app.cancelVideoGeneration()" style="flex: 1; background: #dc3545;">
+                        取消生成
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Screenshot Guide Modal -->
     <div class="modal" id="screenshotGuideModal" style="display: none;">
         <div class="modal-content">
@@ -977,6 +1046,7 @@
     <script src="js/gpx-parser.js"></script>
     <script src="js/fit-parser.js"></script>
     <script src="js/heatmap-renderer.js"></script>
+    <script src="js/video-generator.js"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

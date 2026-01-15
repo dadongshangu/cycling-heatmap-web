@@ -492,6 +492,49 @@ class HeatmapRenderer {
     }
 
     /**
+     * 渲染热力图（用于视频生成）
+     * 与renderHeatmap的区别：不重新调整地图视图，保持当前视图，禁用空间索引
+     * @param {Array} points - 轨迹点数组 [[lat, lon], ...]
+     */
+    renderHeatmapWithTimeFilter(points) {
+        if (!points || points.length === 0) {
+            logger.warn('没有轨迹点数据');
+            return;
+        }
+
+        // 保存当前点（用于视频生成时的累积显示）
+        this.currentPoints = points;
+
+        // 对于视频生成，不使用空间索引（需要显示所有点）
+        // 但如果是超大数据集，仍然需要优化
+        const useSpatialIndexForVideo = false; // 视频生成时禁用空间索引，确保所有点都显示
+
+        // 移除现有的热力图层
+        if (this.heatLayer) {
+            this.map.removeLayer(this.heatLayer);
+        }
+
+        // 创建Strava风格的热力图层
+        this.heatLayer = L.heatLayer(points, {
+            radius: this.heatmapOptions.radius,
+            blur: this.heatmapOptions.blur,
+            minOpacity: this.heatmapOptions.minOpacity,
+            maxZoom: this.heatmapOptions.maxZoom,
+            gradient: this.getStravaGradient()
+        });
+
+        // 添加到地图
+        this.heatLayer.addTo(this.map);
+
+        // 注意：不调整地图视图，保持当前视图（用于视频生成时保持一致的视角）
+        // 首次调用时，如果地图还没有初始边界，才调整视图
+        if (!this.map.hasInitialBounds && points.length > 0) {
+            this.fitMapToPoints(points);
+            this.map.hasInitialBounds = true;
+        }
+    }
+
+    /**
      * 获取Strava风格的颜色渐变
      * @returns {Object} 颜色渐变配置
      */

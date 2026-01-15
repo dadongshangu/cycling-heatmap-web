@@ -17,7 +17,8 @@ const requiredFiles = [
     'js/main.js',
     'js/heatmap-renderer.js',
     'js/gpx-parser.js',
-    'js/map-config.js'
+    'js/map-config.js',
+    'js/video-generator.js'
 ];
 
 // HTML中必需的元素ID
@@ -27,6 +28,7 @@ const requiredElementIds = [
     'selectFileBtn',    // 选择文件按钮
     'generateBtn',      // 生成按钮
     'exportBtn',       // 导出按钮
+    'generateVideoBtn', // 视频生成按钮
     'uploadArea',      // 上传区域
     'clearFiles',      // 清除文件按钮
     'mapStyle',        // 地图样式选择
@@ -42,6 +44,7 @@ const requiredScripts = [
     'js/map-config.js',
     'js/gpx-parser.js',
     'js/heatmap-renderer.js',
+    'js/video-generator.js',
     'js/main.js'
 ];
 

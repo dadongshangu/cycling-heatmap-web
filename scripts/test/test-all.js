@@ -22,8 +22,7 @@ const testSuites = [
     { name: '代码质量检查', script: '../check-quality.js', required: false },
     { name: 'GeoUtils单元测试', script: 'unit/test-geo-utils.js', required: true },
     { name: 'GPX解析器测试', script: 'unit/test-gpx-parser.js', required: false },
-    { name: '导出功能回归测试', script: 'regression/test-export-regression.js', required: true },
-    { name: 'FIT解析回归测试', script: 'regression/test-fit-regression.js', required: true }
+    { name: '所有回归测试', script: 'regression/test-all-regression.js', required: true }
 ];
 
 // 运行每个测试套件

@@ -10,6 +10,7 @@ class CyclingHeatmapApp {
         this.loadedTracks = [];
         this.isProcessing = false;
         this.startTime = null; // 用于计算处理时间
+        this.videoGenerator = null; // 视频生成器（延迟初始化）
         
         // 缓存常用 DOM 元素
         this.domElements = {};
@@ -24,7 +25,7 @@ class CyclingHeatmapApp {
     cacheDOMElements() {
         const elementIds = [
             'fileInput', 'selectFileBtn', 'clearFilesBtn', 'generateBtn', 
-            'exportBtn', 'fullscreenBtn', 'dateRange', 'mapStyle', 
+            'exportBtn', 'fullscreenBtn', 'generateVideoBtn', 'dateRange', 'mapStyle', 
             'mapLanguage', 'radius', 'blur', 'opacity', 'fileList',
             'loadingOverlay', 'loadingText', 'progressFill', 'apiUsagePanel'
         ];
@@ -230,11 +231,15 @@ class CyclingHeatmapApp {
         // 地图控制按钮
         const exportBtn = this.getElement('exportBtn');
         const fullscreenBtn = this.getElement('fullscreenBtn');
+        const generateVideoBtn = this.getElement('generateVideoBtn');
         if (exportBtn) {
             exportBtn.addEventListener('click', this.exportMap.bind(this));
         }
         if (fullscreenBtn) {
             fullscreenBtn.addEventListener('click', this.enterFullscreen.bind(this));
+        }
+        if (generateVideoBtn) {
+            generateVideoBtn.addEventListener('click', this.showVideoConfigModal.bind(this));
         }
         
         // 检测全屏API支持，如果不支持则隐藏全屏按钮
@@ -945,8 +950,10 @@ class CyclingHeatmapApp {
         document.getElementById('statsSection').style.display = 'none';
         const generateBtn = this.getElement('generateBtn');
         const exportBtn = this.getElement('exportBtn');
+        const generateVideoBtn = this.getElement('generateVideoBtn');
         if (generateBtn) generateBtn.disabled = true;
         if (exportBtn) exportBtn.disabled = true;
+        if (generateVideoBtn) generateVideoBtn.disabled = true;
         
         // 重置文件输入
         const fileInput = document.getElementById('fileInput');
@@ -1101,10 +1108,14 @@ class CyclingHeatmapApp {
             // 渲染热力图
             this.heatmapRenderer.renderHeatmap(finalPoints);
             
-            // 启用导出按钮
+            // 启用导出按钮和视频生成按钮
             const exportBtn = this.getElement('exportBtn');
+            const generateVideoBtn = this.getElement('generateVideoBtn');
             if (exportBtn) {
                 exportBtn.disabled = false;
+            }
+            if (generateVideoBtn) {
+                generateVideoBtn.disabled = false;
             }
             
             this.showMessage(`热力图生成成功！显示 ${finalPoints.length.toLocaleString()} 个轨迹点`, 'success');
@@ -1759,6 +1770,240 @@ class CyclingHeatmapApp {
     }
 
     /**
+     * 显示视频配置模态框
+     */
+    showVideoConfigModal() {
+        if (this.loadedTracks.length === 0) {
+            this.showMessage('请先上传并生成热力图', 'warning');
+            return;
+        }
+
+        if (!this.heatmapRenderer.heatLayer) {
+            this.showMessage('请先生成热力图', 'warning');
+            return;
+        }
+
+        // 检查是否支持视频生成
+        const supportCheck = VideoGenerator.checkSupport();
+        if (!supportCheck.supported) {
+            const message = supportCheck.message || supportCheck.reason || '您的浏览器不支持视频生成功能';
+            this.showMessage(message, 'error');
+            return;
+        }
+
+        const modal = document.getElementById('videoConfigModal');
+        if (!modal) {
+            this.showMessage('视频配置界面未找到', 'error');
+            return;
+        }
+
+        // 计算时间范围
+        const allDates = [];
+        for (let i = 0; i < this.loadedTracks.length; i++) {
+            const track = this.loadedTracks[i];
+            for (let j = 0; j < track.points.length; j++) {
+                if (track.points[j].timestamp) {
+                    allDates.push(track.points[j].timestamp);
+                }
+            }
+        }
+
+        if (allDates.length === 0) {
+            this.showMessage('没有带时间戳的轨迹点，无法生成视频', 'error');
+            return;
+        }
+
+        // 设置默认时间范围（使用循环避免展开运算符导致堆栈溢出）
+        let minTimestamp = allDates[0];
+        let maxTimestamp = allDates[0];
+        for (let i = 1; i < allDates.length; i++) {
+            if (allDates[i] < minTimestamp) minTimestamp = allDates[i];
+            if (allDates[i] > maxTimestamp) maxTimestamp = allDates[i];
+        }
+        const minDate = new Date(minTimestamp);
+        const maxDate = new Date(maxTimestamp);
+
+        // 默认选择最近一年（如果数据超过一年）
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        const defaultStartDate = oneYearAgo > minDate ? oneYearAgo : minDate;
+        const defaultEndDate = maxDate;
+
+        const startDateInput = document.getElementById('videoStartDate');
+        const endDateInput = document.getElementById('videoEndDate');
+
+        if (startDateInput) {
+            startDateInput.value = defaultStartDate.toISOString().split('T')[0];
+            startDateInput.min = minDate.toISOString().split('T')[0];
+            startDateInput.max = maxDate.toISOString().split('T')[0];
+        }
+
+        if (endDateInput) {
+            endDateInput.value = defaultEndDate.toISOString().split('T')[0];
+            endDateInput.min = minDate.toISOString().split('T')[0];
+            endDateInput.max = maxDate.toISOString().split('T')[0];
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    /**
+     * 关闭视频配置模态框
+     */
+    closeVideoConfigModal() {
+        const modal = document.getElementById('videoConfigModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    /**
+     * 生成视频
+     */
+    async generateVideo() {
+        const startDateInput = document.getElementById('videoStartDate');
+        const endDateInput = document.getElementById('videoEndDate');
+
+        if (!startDateInput || !endDateInput) {
+            this.showMessage('时间选择器未找到', 'error');
+            return;
+        }
+
+        const startDate = new Date(startDateInput.value);
+        const endDate = new Date(endDateInput.value);
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+            this.showMessage('请选择有效的时间范围', 'error');
+            return;
+        }
+
+        if (startDate >= endDate) {
+            this.showMessage('开始时间必须早于结束时间', 'error');
+            return;
+        }
+
+        // 关闭配置模态框
+        this.closeVideoConfigModal();
+
+        // 初始化视频生成器（如果尚未初始化）
+        if (!this.videoGenerator) {
+            this.videoGenerator = new VideoGenerator(this.heatmapRenderer);
+        }
+
+        // 在视频生成过程中禁用导出按钮，避免状态冲突
+        const exportBtn = this.getElement('exportBtn');
+        const originalExportDisabled = exportBtn ? exportBtn.disabled : false;
+        if (exportBtn) {
+            exportBtn.disabled = true;
+        }
+
+        try {
+            // 显示视频生成进度模态框
+            const progressModal = document.getElementById('videoProgressModal');
+            if (progressModal) {
+                progressModal.style.display = 'flex';
+            }
+
+            const progressBar = document.getElementById('videoProgressBar');
+            const progressText = document.getElementById('videoProgressText');
+
+            // 进度回调
+            const progressCallback = (progress) => {
+                if (progressBar) {
+                    progressBar.style.width = progress.progress + '%';
+                }
+                if (progressText) {
+                    progressText.textContent = progress.message || '处理中...';
+                }
+            };
+
+            // 生成视频
+            const videoBlob = await this.videoGenerator.generateVideo(
+                this.loadedTracks,
+                startDate,
+                endDate,
+                progressCallback
+            );
+
+            // 下载视频
+            const url = URL.createObjectURL(videoBlob);
+            const now = new Date();
+            const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            const filename = `cycling-heatmap-video-${timestamp}.mp4`;
+
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = url;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            // 关闭进度模态框
+            if (progressModal) {
+                progressModal.style.display = 'none';
+            }
+
+            this.showMessage('视频生成成功！', 'success');
+
+        } catch (error) {
+            logger.error('视频生成失败:', error);
+
+            // 关闭进度模态框
+            const progressModal = document.getElementById('videoProgressModal');
+            if (progressModal) {
+                progressModal.style.display = 'none';
+            }
+
+            const errorMsg = error.message || '未知错误';
+            if (errorMsg === '生成已取消') {
+                this.showMessage('视频生成已取消', 'info');
+            } else if (errorMsg.includes('FFmpeg加载失败') || errorMsg.includes('无法加载FFmpeg')) {
+                // FFmpeg加载失败，提供更详细的提示
+                this.showMessage(
+                    '视频处理库加载失败。可能原因：\n' +
+                    '1. 网络连接问题，请检查网络后重试\n' +
+                    '2. 浏览器不支持ES模块，请使用Chrome、Firefox或Edge最新版本\n' +
+                    '3. 浏览器安全策略阻止了外部资源加载\n\n' +
+                    '建议：使用现代浏览器（Chrome/Edge/Firefox最新版本）并确保网络连接正常。',
+                    'error'
+                );
+            } else {
+                this.showMessage('视频生成失败: ' + errorMsg, 'error');
+            }
+        } finally {
+            // 恢复导出按钮状态
+            if (exportBtn) {
+                exportBtn.disabled = originalExportDisabled;
+            }
+        }
+    }
+
+    /**
+     * 取消视频生成
+     */
+    cancelVideoGeneration() {
+        if (this.videoGenerator) {
+            this.videoGenerator.cancel();
+        }
+
+        const progressModal = document.getElementById('videoProgressModal');
+        if (progressModal) {
+            progressModal.style.display = 'none';
+        }
+
+        // 恢复导出按钮状态（视频生成器会在finally中恢复热力图）
+        const exportBtn = this.getElement('exportBtn');
+        if (exportBtn && this.heatmapRenderer.heatLayer) {
+            // 只有在热力图存在时才启用导出按钮
+            exportBtn.disabled = false;
+        }
+
+        this.showMessage('正在取消视频生成...', 'info');
+    }
+
+    /**
      * 显示截屏指南
      */
     showScreenshotGuide() {
@@ -2090,11 +2335,13 @@ class CyclingHeatmapApp {
      * 更新UI状态
      */
     updateUI() {
-        // 初始状态下禁用生成和导出按钮
+        // 初始状态下禁用生成、导出和视频生成按钮
         const generateBtn = this.getElement('generateBtn');
         const exportBtn = this.getElement('exportBtn');
+        const generateVideoBtn = this.getElement('generateVideoBtn');
         if (generateBtn) generateBtn.disabled = true;
         if (exportBtn) exportBtn.disabled = true;
+        if (generateVideoBtn) generateVideoBtn.disabled = true;
         
         // 隐藏文件列表和统计信息
         document.getElementById('fileList').style.display = 'none';

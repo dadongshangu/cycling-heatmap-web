@@ -18,7 +18,8 @@ const filesToCheck = [
     'js/main.js',
     'js/heatmap-renderer.js',
     'js/gpx-parser.js',
-    'js/map-config.js'
+    'js/map-config.js',
+    'js/video-generator.js'
 ];
 
 let hasError = false;

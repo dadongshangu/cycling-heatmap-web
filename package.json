@@ -1,0 +1,38 @@
+{
+  "name": "cycling-heatmap-web",
+  "version": "1.0.0",
+  "description": "一个基于Web的GPS轨迹热力图生成器，专注于骑行，同时支持徒步、跑步等所有GPS轨迹。将GPX轨迹文件转换为Strava风格的交互式热力图。",
+  "main": "index.js",
+  "directories": {
+    "doc": "doc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2"
+  },
+  "scripts": {
+    "test": "node scripts/test/test-all.js",
+    "test:video": "node test-video-simple.js",
+    "test:compatibility": "node test-video-export-compatibility.js",
+    "test:unit": "node scripts/test/unit/test-geo-utils.js",
+    "test:regression": "node scripts/test/regression/test-all-regression.js",
+    "test:regression:export": "node scripts/test/regression/test-export-regression.js",
+    "test:regression:fit": "node scripts/test/regression/test-fit-regression.js",
+    "test:regression:video": "node scripts/test/regression/test-video-regression.js",
+    "check:syntax": "node scripts/check-syntax.js",
+    "check:files": "node scripts/check-files.js",
+    "check:quality": "node scripts/check-quality.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dadongshangu/cycling-heatmap-web.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dadongshangu/cycling-heatmap-web/issues"
+  },
+  "homepage": "https://github.com/dadongshangu/cycling-heatmap-web#readme"
+}
